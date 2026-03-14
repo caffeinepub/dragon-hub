@@ -71,6 +71,22 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
+          {!!identity && (
+            <Link
+              to="/admin"
+              data-ocid="nav.admin.link"
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                location.pathname === "/admin"
+                  ? "text-primary bg-primary/10"
+                  : isAdmin
+                    ? "text-primary/80 hover:text-primary hover:bg-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <Shield className="h-4 w-4" />
+              Admin
+            </Link>
+          )}
         </nav>
 
         {/* Right side */}
@@ -107,21 +123,6 @@ export function Navbar() {
                     <span>{shortPrincipal}</span>
                   </Link>
                 </DropdownMenuItem>
-                {isAdmin && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link
-                        to="/admin"
-                        data-ocid="nav.admin.link"
-                        className="flex items-center gap-2 text-primary focus:text-primary"
-                      >
-                        <Shield className="h-4 w-4" />
-                        Admin Panel
-                      </Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={clear}
@@ -178,17 +179,19 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          {isAdmin && (
+          {!!identity && (
             <Link
               to="/admin"
-              data-ocid="nav.admin.link"
-              className="px-4 py-2 rounded-md text-sm font-medium text-primary bg-primary/10"
+              data-ocid="nav.mobile.admin.link"
+              className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${
+                isAdmin
+                  ? "text-primary bg-primary/10"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
               onClick={() => setMobileOpen(false)}
             >
-              <span className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Admin Panel
-              </span>
+              <Shield className="h-4 w-4" />
+              Admin Panel
             </Link>
           )}
         </div>

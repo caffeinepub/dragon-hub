@@ -24,6 +24,10 @@ export interface Video {
     thumbnailBlob: ExternalBlob;
     timestamp: bigint;
 }
+export interface UserProfile {
+    bio: string;
+    displayName: string;
+}
 export type CommentId = bigint;
 export interface Comment {
     id: CommentId;
@@ -31,6 +35,11 @@ export interface Comment {
     author: Principal;
     timestamp: bigint;
     videoId: VideoId;
+}
+export interface UserWithRole {
+    principal: Principal;
+    role: UserRole;
+    profile: UserProfile;
 }
 export interface Listing {
     id: ListingId;
@@ -68,10 +77,6 @@ export interface ForumThread {
 export type ListingId = bigint;
 export type VideoId = bigint;
 export type CategoryId = bigint;
-export interface UserProfile {
-    bio: string;
-    displayName: string;
-}
 export interface ThreadWithReplies {
     thread: ForumThread;
     replies: Array<ThreadReply>;
@@ -90,6 +95,7 @@ export interface backendInterface {
     createVideo(title: string, description: string, videoBlob: ExternalBlob, thumbnailBlob: ExternalBlob): Promise<VideoId>;
     getAllActiveListings(): Promise<Array<Listing>>;
     getAllCategories(): Promise<Array<ForumCategory>>;
+    getAllUsers(): Promise<Array<UserWithRole>>;
     getAllVideos(): Promise<Array<Video>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -102,6 +108,7 @@ export interface backendInterface {
     isCallerAdmin(): Promise<boolean>;
     likeVideo(id: VideoId): Promise<void>;
     markAsSold(id: ListingId): Promise<void>;
+    removeUser(user: Principal): Promise<void>;
     replyToThread(threadId: ThreadId, text: string): Promise<ReplyId>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
 }

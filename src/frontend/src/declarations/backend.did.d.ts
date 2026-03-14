@@ -62,6 +62,11 @@ export interface UserProfile { 'bio' : string, 'displayName' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface UserWithRole {
+  'principal' : Principal,
+  'role' : UserRole,
+  'profile' : UserProfile,
+}
 export interface Video {
   'id' : VideoId,
   'title' : string,
@@ -115,6 +120,7 @@ export interface _SERVICE {
   >,
   'getAllActiveListings' : ActorMethod<[], Array<Listing>>,
   'getAllCategories' : ActorMethod<[], Array<ForumCategory>>,
+  'getAllUsers' : ActorMethod<[], Array<UserWithRole>>,
   'getAllVideos' : ActorMethod<[], Array<Video>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
@@ -127,6 +133,7 @@ export interface _SERVICE {
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'likeVideo' : ActorMethod<[VideoId], undefined>,
   'markAsSold' : ActorMethod<[ListingId], undefined>,
+  'removeUser' : ActorMethod<[Principal], undefined>,
   'replyToThread' : ActorMethod<[ThreadId, string], ReplyId>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
 }

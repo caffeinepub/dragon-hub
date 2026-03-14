@@ -46,6 +46,15 @@ export const ForumCategory = IDL.Record({
   'description' : IDL.Text,
   'isActive' : IDL.Bool,
 });
+export const UserProfile = IDL.Record({
+  'bio' : IDL.Text,
+  'displayName' : IDL.Text,
+});
+export const UserWithRole = IDL.Record({
+  'principal' : IDL.Principal,
+  'role' : UserRole,
+  'profile' : UserProfile,
+});
 export const Video = IDL.Record({
   'id' : VideoId,
   'title' : IDL.Text,
@@ -55,10 +64,6 @@ export const Video = IDL.Record({
   'likes' : IDL.Nat,
   'thumbnailBlob' : ExternalBlob,
   'timestamp' : IDL.Int,
-});
-export const UserProfile = IDL.Record({
-  'bio' : IDL.Text,
-  'displayName' : IDL.Text,
 });
 export const Comment = IDL.Record({
   'id' : CommentId,
@@ -132,6 +137,7 @@ export const idlService = IDL.Service({
     ),
   'getAllActiveListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
   'getAllCategories' : IDL.Func([], [IDL.Vec(ForumCategory)], ['query']),
+  'getAllUsers' : IDL.Func([], [IDL.Vec(UserWithRole)], ['query']),
   'getAllVideos' : IDL.Func([], [IDL.Vec(Video)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
@@ -156,6 +162,7 @@ export const idlService = IDL.Service({
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'likeVideo' : IDL.Func([VideoId], [], []),
   'markAsSold' : IDL.Func([ListingId], [], []),
+  'removeUser' : IDL.Func([IDL.Principal], [], []),
   'replyToThread' : IDL.Func([ThreadId, IDL.Text], [ReplyId], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
 });
@@ -201,6 +208,15 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'isActive' : IDL.Bool,
   });
+  const UserProfile = IDL.Record({
+    'bio' : IDL.Text,
+    'displayName' : IDL.Text,
+  });
+  const UserWithRole = IDL.Record({
+    'principal' : IDL.Principal,
+    'role' : UserRole,
+    'profile' : UserProfile,
+  });
   const Video = IDL.Record({
     'id' : VideoId,
     'title' : IDL.Text,
@@ -210,10 +226,6 @@ export const idlFactory = ({ IDL }) => {
     'likes' : IDL.Nat,
     'thumbnailBlob' : ExternalBlob,
     'timestamp' : IDL.Int,
-  });
-  const UserProfile = IDL.Record({
-    'bio' : IDL.Text,
-    'displayName' : IDL.Text,
   });
   const Comment = IDL.Record({
     'id' : CommentId,
@@ -287,6 +299,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getAllActiveListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
     'getAllCategories' : IDL.Func([], [IDL.Vec(ForumCategory)], ['query']),
+    'getAllUsers' : IDL.Func([], [IDL.Vec(UserWithRole)], ['query']),
     'getAllVideos' : IDL.Func([], [IDL.Vec(Video)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
@@ -311,6 +324,7 @@ export const idlFactory = ({ IDL }) => {
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'likeVideo' : IDL.Func([VideoId], [], []),
     'markAsSold' : IDL.Func([ListingId], [], []),
+    'removeUser' : IDL.Func([IDL.Principal], [], []),
     'replyToThread' : IDL.Func([ThreadId, IDL.Text], [ReplyId], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   });

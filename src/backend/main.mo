@@ -13,6 +13,8 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import Storage "blob-storage/Storage";
 
+
+
 actor {
   // Mixin Authorization and Storage
   let accessControlState = AccessControl.initState();
@@ -42,7 +44,45 @@ actor {
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
+    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own profile");
+    };
     userProfiles.get(user);
+  };
+
+  // New UserWithRole record
+  type UserWithRole = {
+    principal : Principal;
+    profile : UserProfile;
+    role : AccessControl.UserRole;
+  };
+
+  // Get all users (admin only)
+  public query ({ caller }) func getAllUsers() : async [UserWithRole] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can get all users");
+    };
+    let usersWithRoles = List.empty<UserWithRole>();
+
+    userProfiles.entries().forEach(
+      func((user, profile)) {
+        let role = AccessControl.getUserRole(accessControlState, user);
+        let userWithRole : UserWithRole = {
+          principal = user;
+          profile;
+          role;
+        };
+        usersWithRoles.add(userWithRole);
+      }
+    );
+    usersWithRoles.toArray();
+  };
+
+  public shared ({ caller }) func removeUser(user : Principal) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can remove users");
+    };
+    userProfiles.remove(user);
   };
 
   // Videos
@@ -102,11 +142,11 @@ actor {
     id;
   };
 
-  public query ({ caller }) func getAllVideos() : async [Video] {
+  public query func getAllVideos() : async [Video] {
     videos.values().toArray().sort(Video.compareByTimestamp);
   };
 
-  public query ({ caller }) func getVideo(id : VideoId) : async ?Video {
+  public query func getVideo(id : VideoId) : async ?Video {
     videos.get(id);
   };
 
@@ -153,7 +193,7 @@ actor {
     id;
   };
 
-  public query ({ caller }) func getCommentsForVideo(videoId : VideoId) : async [Comment] {
+  public query func getCommentsForVideo(videoId : VideoId) : async [Comment] {
     comments.values().toArray().filter(
       func(c) {
         c.videoId == videoId;
@@ -205,13 +245,13 @@ actor {
     id;
   };
 
-  public query ({ caller }) func getAllActiveListings() : async [Listing] {
+  public query func getAllActiveListings() : async [Listing] {
     listings.values().toArray().filter(
       func(l) { not l.isSold }
     ).sort(Listing.compareByTimestamp);
   };
 
-  public query ({ caller }) func getListing(id : ListingId) : async ?Listing {
+  public query func getListing(id : ListingId) : async ?Listing {
     listings.get(id);
   };
 
@@ -269,7 +309,7 @@ actor {
     id;
   };
 
-  public query ({ caller }) func getAllCategories() : async [ForumCategory] {
+  public query func getAllCategories() : async [ForumCategory] {
     categories.values().toArray().filter(
       func(c) { c.isActive }
     );
@@ -318,7 +358,7 @@ actor {
     id;
   };
 
-  public query ({ caller }) func getThreadsInCategory(categoryId : CategoryId) : async [ForumThread] {
+  public query func getThreadsInCategory(categoryId : CategoryId) : async [ForumThread] {
     threads.values().toArray().filter(
       func(t) { t.categoryId == categoryId }
     ).sort(ForumThread.compareByTimestamp);
@@ -342,7 +382,7 @@ actor {
     replies : [ThreadReply];
   };
 
-  public query ({ caller }) func getThreadWithReplies(threadId : ThreadId) : async ?ThreadWithReplies {
+  public query func getThreadWithReplies(threadId : ThreadId) : async ?ThreadWithReplies {
     switch (threads.get(threadId)) {
       case (null) { null };
       case (?thread) {

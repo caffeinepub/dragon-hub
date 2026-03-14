@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, User } from "lucide-react";
+import { Check, Copy, Loader2, Save, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -16,6 +16,7 @@ export function ProfilePage() {
   const saveProfile = useSaveProfile();
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -34,6 +35,27 @@ export function ProfilePage() {
   };
 
   const principal = identity?.getPrincipal().toString();
+
+  const copyPrincipal = async () => {
+    if (!principal) return;
+    try {
+      await navigator.clipboard.writeText(principal);
+      setCopied(true);
+      toast.success("Principal ID copied!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select the text in the input
+      const el = document.getElementById("principal-input") as HTMLInputElement;
+      if (el) {
+        el.select();
+        el.setSelectionRange(0, 99999);
+        document.execCommand("copy");
+        setCopied(true);
+        toast.success("Principal ID copied!");
+        setTimeout(() => setCopied(false), 2000);
+      }
+    }
+  };
 
   if (!identity) {
     return (
@@ -69,14 +91,43 @@ export function ProfilePage() {
               {principal?.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-lg">
               {profile?.displayName || "Dragon"}
             </p>
-            <p className="text-xs text-muted-foreground font-mono">
-              {principal?.slice(0, 20)}...
-            </p>
           </div>
+        </div>
+
+        {/* Principal ID section */}
+        <div className="mb-6">
+          <Label className="mb-1.5 block">Your Principal ID</Label>
+          <div className="flex gap-2">
+            <Input
+              id="principal-input"
+              readOnly
+              value={principal ?? ""}
+              className="font-mono text-xs"
+              onFocus={(e) => e.target.select()}
+              data-ocid="profile.principal.input"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={copyPrincipal}
+              title="Copy Principal ID"
+              data-ocid="profile.copy_principal.button"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Share this with an admin to receive elevated permissions.
+          </p>
         </div>
 
         {isLoading ? (
