@@ -2,11 +2,11 @@ import Array "mo:core/Array";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Time "mo:core/Time";
-import Text "mo:core/Text";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Order "mo:core/Order";
-import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
@@ -14,9 +14,7 @@ import MixinStorage "blob-storage/Mixin";
 import Storage "blob-storage/Storage";
 
 
-
 actor {
-  // Mixin Authorization and Storage
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
   include MixinStorage();
@@ -25,6 +23,7 @@ actor {
   type UserProfile = {
     displayName : Text;
     bio : Text;
+    profilePicBlob : ?Storage.ExternalBlob;
   };
 
   let userProfiles = Map.empty<Principal, UserProfile>();
@@ -50,20 +49,17 @@ actor {
     userProfiles.get(user);
   };
 
-  // New UserWithRole record
   type UserWithRole = {
     principal : Principal;
     profile : UserProfile;
     role : AccessControl.UserRole;
   };
 
-  // Get all users (admin only)
   public query ({ caller }) func getAllUsers() : async [UserWithRole] {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can get all users");
     };
     let usersWithRoles = List.empty<UserWithRole>();
-
     userProfiles.entries().forEach(
       func((user, profile)) {
         let role = AccessControl.getUserRole(accessControlState, user);
@@ -127,7 +123,6 @@ actor {
     };
     let id = nextVideoId;
     nextVideoId += 1;
-
     let video : Video = {
       id;
       title;
@@ -181,7 +176,6 @@ actor {
     };
     let id = nextCommentId;
     nextCommentId += 1;
-
     let comment : Comment = {
       id;
       videoId;
@@ -195,9 +189,7 @@ actor {
 
   public query func getCommentsForVideo(videoId : VideoId) : async [Comment] {
     comments.values().toArray().filter(
-      func(c) {
-        c.videoId == videoId;
-      }
+      func(c) { c.videoId == videoId }
     );
   };
 
@@ -230,7 +222,6 @@ actor {
     };
     let id = nextListingId;
     nextListingId += 1;
-
     let listing : Listing = {
       id;
       title;
@@ -257,9 +248,7 @@ actor {
 
   public shared ({ caller }) func markAsSold(id : ListingId) : async () {
     switch (listings.get(id)) {
-      case (null) {
-        Runtime.trap("Listing not found");
-      };
+      case (null) { Runtime.trap("Listing not found") };
       case (?listing) {
         if (caller != listing.owner) {
           Runtime.trap("Only the owner can mark as sold");
@@ -298,7 +287,6 @@ actor {
     };
     let id = nextCategoryId;
     nextCategoryId += 1;
-
     let category : ForumCategory = {
       id;
       name;
@@ -342,10 +330,8 @@ actor {
     if (not categories.containsKey(categoryId)) {
       Runtime.trap("Category not found");
     };
-
     let id = nextThreadId;
     nextThreadId += 1;
-
     let thread : ForumThread = {
       id;
       categoryId;
@@ -389,10 +375,7 @@ actor {
         let threadReplies = replies.values().toArray().filter(
           func(r) { r.threadId == threadId }
         );
-        ?{
-          thread;
-          replies = threadReplies;
-        };
+        ?{ thread; replies = threadReplies };
       };
     };
   };
@@ -406,7 +389,6 @@ actor {
     };
     let id = nextReplyId;
     nextReplyId += 1;
-
     let reply : ThreadReply = {
       id;
       threadId;
@@ -416,5 +398,270 @@ actor {
     };
     replies.add(id, reply);
     id;
+  };
+
+  // Shops
+  type ShopId = Nat;
+  var nextShopId = 0;
+
+  type Shop = {
+    id : ShopId;
+    name : Text;
+    description : Text;
+    bannerBlob : ?Storage.ExternalBlob;
+    owner : Principal;
+    timestamp : Int;
+  };
+
+  let shops = Map.empty<ShopId, Shop>();
+
+  type ShopProductId = Nat;
+  var nextShopProductId = 0;
+
+  type ShopProduct = {
+    id : ShopProductId;
+    shopId : ShopId;
+    title : Text;
+    description : Text;
+    price : Nat;
+    imageBlob : ?Storage.ExternalBlob;
+    timestamp : Int;
+  };
+
+  let shopProducts = Map.empty<ShopProductId, ShopProduct>();
+
+  public shared ({ caller }) func createShop(name : Text, description : Text, bannerBlob : ?Storage.ExternalBlob) : async ShopId {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can create shops");
+    };
+    let id = nextShopId;
+    nextShopId += 1;
+    let shop : Shop = {
+      id;
+      name;
+      description;
+      bannerBlob;
+      owner = caller;
+      timestamp = Time.now();
+    };
+    shops.add(id, shop);
+    id;
+  };
+
+  public query func getAllShops() : async [Shop] {
+    shops.values().toArray();
+  };
+
+  public query func getShop(id : ShopId) : async ?Shop {
+    shops.get(id);
+  };
+
+  public query func getShopByOwner(owner : Principal) : async ?Shop {
+    var found : ?Shop = null;
+    shops.values().forEach(func(s) {
+      if (s.owner == owner) { found := ?s };
+    });
+    found;
+  };
+
+  public shared ({ caller }) func addShopProduct(shopId : ShopId, title : Text, description : Text, price : Nat, imageBlob : ?Storage.ExternalBlob) : async ShopProductId {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (shops.get(shopId)) {
+      case (null) { Runtime.trap("Shop not found") };
+      case (?shop) {
+        if (shop.owner != caller) { Runtime.trap("Only shop owner can add products") };
+      };
+    };
+    let id = nextShopProductId;
+    nextShopProductId += 1;
+    let product : ShopProduct = {
+      id;
+      shopId;
+      title;
+      description;
+      price;
+      imageBlob;
+      timestamp = Time.now();
+    };
+    shopProducts.add(id, product);
+    id;
+  };
+
+  public query func getShopProducts(shopId : ShopId) : async [ShopProduct] {
+    shopProducts.values().toArray().filter(
+      func(p) { p.shopId == shopId }
+    );
+  };
+
+  public shared ({ caller }) func deleteShopProduct(productId : ShopProductId) : async () {
+    switch (shopProducts.get(productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?product) {
+        switch (shops.get(product.shopId)) {
+          case (null) { Runtime.trap("Shop not found") };
+          case (?shop) {
+            if (shop.owner != caller) { Runtime.trap("Only shop owner can delete products") };
+          };
+        };
+        shopProducts.remove(productId);
+      };
+    };
+  };
+
+  // Groups
+  type GroupId = Nat;
+  var nextGroupId = 0;
+
+  type Group = {
+    id : GroupId;
+    name : Text;
+    description : Text;
+    iconBlob : ?Storage.ExternalBlob;
+    owner : Principal;
+    timestamp : Int;
+  };
+
+  let groups = Map.empty<GroupId, Group>();
+
+  type ChannelId = Nat;
+  var nextChannelId = 0;
+
+  type GroupChannel = {
+    id : ChannelId;
+    groupId : GroupId;
+    name : Text;
+    description : Text;
+  };
+
+  let groupChannels = Map.empty<ChannelId, GroupChannel>();
+
+  type GroupMessageId = Nat;
+  var nextGroupMessageId = 0;
+
+  type GroupMessage = {
+    id : GroupMessageId;
+    channelId : ChannelId;
+    author : Principal;
+    text : Text;
+    timestamp : Int;
+  };
+
+  let groupMessages = Map.empty<GroupMessageId, GroupMessage>();
+
+  let groupMembers = Map.empty<GroupId, List.List<Principal>>();
+
+  public shared ({ caller }) func createGroup(name : Text, description : Text, iconBlob : ?Storage.ExternalBlob) : async GroupId {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let id = nextGroupId;
+    nextGroupId += 1;
+    let group : Group = {
+      id;
+      name;
+      description;
+      iconBlob;
+      owner = caller;
+      timestamp = Time.now();
+    };
+    groups.add(id, group);
+    let members = List.empty<Principal>();
+    members.add(caller);
+    groupMembers.add(id, members);
+    id;
+  };
+
+  public query func getAllGroups() : async [Group] {
+    groups.values().toArray();
+  };
+
+  public query func getGroup(id : GroupId) : async ?Group {
+    groups.get(id);
+  };
+
+  public shared ({ caller }) func joinGroup(groupId : GroupId) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    if (not groups.containsKey(groupId)) { Runtime.trap("Group not found") };
+    switch (groupMembers.get(groupId)) {
+      case (null) {
+        let members = List.empty<Principal>();
+        members.add(caller);
+        groupMembers.add(groupId, members);
+      };
+      case (?members) {
+        let alreadyMember = members.toArray().filter(func(p) { p == caller }).size() > 0;
+        if (not alreadyMember) { members.add(caller) };
+      };
+    };
+  };
+
+  public shared ({ caller }) func leaveGroup(groupId : GroupId) : async () {
+    switch (groupMembers.get(groupId)) {
+      case (null) {};
+      case (?members) {
+        let filtered = List.fromArray(members.toArray().filter(func(p) { p != caller }));
+        groupMembers.add(groupId, filtered);
+      };
+    };
+  };
+
+  public query func getGroupMembers(groupId : GroupId) : async [Principal] {
+    switch (groupMembers.get(groupId)) {
+      case (null) { [] };
+      case (?members) { members.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func createGroupChannel(groupId : GroupId, name : Text, description : Text) : async ChannelId {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (groups.get(groupId)) {
+      case (null) { Runtime.trap("Group not found") };
+      case (?group) {
+        if (group.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Only group owner can create channels");
+        };
+      };
+    };
+    let id = nextChannelId;
+    nextChannelId += 1;
+    let channel : GroupChannel = { id; groupId; name; description };
+    groupChannels.add(id, channel);
+    id;
+  };
+
+  public query func getGroupChannels(groupId : GroupId) : async [GroupChannel] {
+    groupChannels.values().toArray().filter(
+      func(c) { c.groupId == groupId }
+    );
+  };
+
+  public shared ({ caller }) func postGroupMessage(channelId : ChannelId, text : Text) : async GroupMessageId {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    if (not groupChannels.containsKey(channelId)) { Runtime.trap("Channel not found") };
+    let id = nextGroupMessageId;
+    nextGroupMessageId += 1;
+    let msg : GroupMessage = {
+      id;
+      channelId;
+      author = caller;
+      text;
+      timestamp = Time.now();
+    };
+    groupMessages.add(id, msg);
+    id;
+  };
+
+  public query func getGroupMessages(channelId : ChannelId) : async [GroupMessage] {
+    groupMessages.values().toArray().filter(
+      func(m) { m.channelId == channelId }
+    );
   };
 };

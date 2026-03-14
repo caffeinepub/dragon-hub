@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalBlob } from "../backend";
-import type { UserProfile } from "../backend.d";
+import type { UserProfile } from "../backend";
 import { useActor } from "./useActor";
 
 export function useAllVideos() {
@@ -221,7 +221,7 @@ export function useCreateListing() {
   });
 }
 
-export function useMarkAsSold() {
+export function useMarkListingSold() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
@@ -229,10 +229,7 @@ export function useMarkAsSold() {
       if (!actor) throw new Error("Not connected");
       return actor.markAsSold(id);
     },
-    onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: ["listing", id.toString()] });
-      qc.invalidateQueries({ queryKey: ["listings"] });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["listings"] }),
   });
 }
 
@@ -259,11 +256,7 @@ export function useCreateThread() {
       categoryId,
       title,
       body,
-    }: {
-      categoryId: bigint;
-      title: string;
-      body: string;
-    }) => {
+    }: { categoryId: bigint; title: string; body: string }) => {
       if (!actor) throw new Error("Not connected");
       return actor.createThread(categoryId, title, body);
     },
@@ -285,5 +278,309 @@ export function useReplyToThread() {
     },
     onSuccess: (_data, { threadId }) =>
       qc.invalidateQueries({ queryKey: ["thread", threadId.toString()] }),
+  });
+}
+
+export function useAllUsers() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allUsers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllUsers();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAssignRole() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ user, role }: { user: any; role: any }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.assignCallerUserRole(user, role);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["allUsers"] }),
+  });
+}
+
+export function useRemoveUser() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (user: any) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.removeUser(user);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["allUsers"] }),
+  });
+}
+
+// ============ SHOPS ============
+
+export function useAllShops() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["shops"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllShops();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useShop(id: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["shop", id.toString()],
+    queryFn: async () => {
+      if (!actor) return null;
+      return (actor as any).getShop(id);
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useShopByOwner(owner: any) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["shopByOwner", owner?.toString()],
+    queryFn: async () => {
+      if (!actor || !owner) return null;
+      return (actor as any).getShopByOwner(owner);
+    },
+    enabled: !!actor && !isFetching && !!owner,
+  });
+}
+
+export function useShopProducts(shopId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["shopProducts", shopId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getShopProducts(shopId);
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreateShop() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      description,
+      bannerFile,
+    }: { name: string; description: string; bannerFile: File | null }) => {
+      if (!actor) throw new Error("Not connected");
+      let bannerBlob: ExternalBlob | null = null;
+      if (bannerFile) {
+        const bytes = new Uint8Array(await bannerFile.arrayBuffer());
+        bannerBlob = ExternalBlob.fromBytes(bytes);
+      }
+      return (actor as any).createShop(name, description, bannerBlob);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shops"] }),
+  });
+}
+
+export function useAddShopProduct() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      shopId,
+      title,
+      description,
+      price,
+      imageFile,
+    }: {
+      shopId: bigint;
+      title: string;
+      description: string;
+      price: bigint;
+      imageFile: File | null;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      let imageBlob: ExternalBlob | null = null;
+      if (imageFile) {
+        const bytes = new Uint8Array(await imageFile.arrayBuffer());
+        imageBlob = ExternalBlob.fromBytes(bytes);
+      }
+      return (actor as any).addShopProduct(
+        shopId,
+        title,
+        description,
+        price,
+        imageBlob,
+      );
+    },
+    onSuccess: (_data, { shopId }) =>
+      qc.invalidateQueries({ queryKey: ["shopProducts", shopId.toString()] }),
+  });
+}
+
+export function useDeleteShopProduct() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      productId,
+      shopId: _shopId,
+    }: { productId: bigint; shopId: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).deleteShopProduct(productId);
+    },
+    onSuccess: (_data, { shopId }) =>
+      qc.invalidateQueries({ queryKey: ["shopProducts", shopId.toString()] }),
+  });
+}
+
+// ============ GROUPS ============
+
+export function useAllGroups() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["groups"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllGroups();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGroup(id: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["group", id.toString()],
+    queryFn: async () => {
+      if (!actor) return null;
+      return (actor as any).getGroup(id);
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGroupMembers(groupId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["groupMembers", groupId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getGroupMembers(groupId);
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGroupChannels(groupId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["groupChannels", groupId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getGroupChannels(groupId);
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGroupMessages(channelId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["groupMessages", channelId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getGroupMessages(channelId);
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 5000,
+  });
+}
+
+export function useCreateGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      description,
+      iconFile,
+    }: { name: string; description: string; iconFile: File | null }) => {
+      if (!actor) throw new Error("Not connected");
+      let iconBlob: ExternalBlob | null = null;
+      if (iconFile) {
+        const bytes = new Uint8Array(await iconFile.arrayBuffer());
+        iconBlob = ExternalBlob.fromBytes(bytes);
+      }
+      return (actor as any).createGroup(name, description, iconBlob);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups"] }),
+  });
+}
+
+export function useJoinGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (groupId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).joinGroup(groupId);
+    },
+    onSuccess: (_data, groupId) =>
+      qc.invalidateQueries({ queryKey: ["groupMembers", groupId.toString()] }),
+  });
+}
+
+export function useLeaveGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (groupId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).leaveGroup(groupId);
+    },
+    onSuccess: (_data, groupId) =>
+      qc.invalidateQueries({ queryKey: ["groupMembers", groupId.toString()] }),
+  });
+}
+
+export function useCreateGroupChannel() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      name,
+      description,
+    }: { groupId: bigint; name: string; description: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).createGroupChannel(groupId, name, description);
+    },
+    onSuccess: (_data, { groupId }) =>
+      qc.invalidateQueries({ queryKey: ["groupChannels", groupId.toString()] }),
+  });
+}
+
+export function usePostGroupMessage() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      channelId,
+      text,
+    }: { channelId: bigint; text: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).postGroupMessage(channelId, text);
+    },
+    onSuccess: (_data, { channelId }) =>
+      qc.invalidateQueries({
+        queryKey: ["groupMessages", channelId.toString()],
+      }),
   });
 }

@@ -27,6 +27,7 @@ export interface Video {
 export interface UserProfile {
     bio: string;
     displayName: string;
+    profilePicBlob?: ExternalBlob;
 }
 export type CommentId = bigint;
 export interface Comment {
@@ -86,6 +87,51 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+// Shops
+export type ShopId = bigint;
+export interface Shop {
+    id: ShopId;
+    name: string;
+    description: string;
+    bannerBlob?: ExternalBlob;
+    owner: Principal;
+    timestamp: bigint;
+}
+export type ShopProductId = bigint;
+export interface ShopProduct {
+    id: ShopProductId;
+    shopId: ShopId;
+    title: string;
+    description: string;
+    price: bigint;
+    imageBlob?: ExternalBlob;
+    timestamp: bigint;
+}
+// Groups
+export type GroupId = bigint;
+export interface Group {
+    id: GroupId;
+    name: string;
+    description: string;
+    iconBlob?: ExternalBlob;
+    owner: Principal;
+    timestamp: bigint;
+}
+export type ChannelId = bigint;
+export interface GroupChannel {
+    id: ChannelId;
+    groupId: GroupId;
+    name: string;
+    description: string;
+}
+export type GroupMessageId = bigint;
+export interface GroupMessage {
+    id: GroupMessageId;
+    channelId: ChannelId;
+    author: Principal;
+    text: string;
+    timestamp: bigint;
+}
 export interface backendInterface {
     addComment(videoId: VideoId, text: string): Promise<CommentId>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -111,4 +157,23 @@ export interface backendInterface {
     removeUser(user: Principal): Promise<void>;
     replyToThread(threadId: ThreadId, text: string): Promise<ReplyId>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    // Shops
+    createShop(name: string, description: string, bannerBlob: ExternalBlob | null): Promise<ShopId>;
+    getAllShops(): Promise<Array<Shop>>;
+    getShop(id: ShopId): Promise<Shop | null>;
+    getShopByOwner(owner: Principal): Promise<Shop | null>;
+    addShopProduct(shopId: ShopId, title: string, description: string, price: bigint, imageBlob: ExternalBlob | null): Promise<ShopProductId>;
+    getShopProducts(shopId: ShopId): Promise<Array<ShopProduct>>;
+    deleteShopProduct(productId: ShopProductId): Promise<void>;
+    // Groups
+    createGroup(name: string, description: string, iconBlob: ExternalBlob | null): Promise<GroupId>;
+    getAllGroups(): Promise<Array<Group>>;
+    getGroup(id: GroupId): Promise<Group | null>;
+    joinGroup(groupId: GroupId): Promise<void>;
+    leaveGroup(groupId: GroupId): Promise<void>;
+    getGroupMembers(groupId: GroupId): Promise<Array<Principal>>;
+    createGroupChannel(groupId: GroupId, name: string, description: string): Promise<ChannelId>;
+    getGroupChannels(groupId: GroupId): Promise<Array<GroupChannel>>;
+    postGroupMessage(channelId: ChannelId, text: string): Promise<GroupMessageId>;
+    getGroupMessages(channelId: ChannelId): Promise<Array<GroupMessage>>;
 }

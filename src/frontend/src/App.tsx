@@ -11,10 +11,14 @@ import { Navbar } from "./components/Navbar";
 import { AdminPage } from "./pages/AdminPage";
 import { CategoryPage } from "./pages/CategoryPage";
 import { ForumsPage } from "./pages/ForumsPage";
+import { GroupDetailPage } from "./pages/GroupDetailPage";
+import { GroupsPage } from "./pages/GroupsPage";
 import { HomePage } from "./pages/HomePage";
 import { ListingDetailPage } from "./pages/ListingDetailPage";
 import { MarketplacePage } from "./pages/MarketplacePage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ShopDetailPage } from "./pages/ShopDetailPage";
+import { ShopsPage } from "./pages/ShopsPage";
 import { ThreadPage } from "./pages/ThreadPage";
 import { VideoDetailPage } from "./pages/VideoDetailPage";
 import { VideosPage } from "./pages/VideosPage";
@@ -64,6 +68,30 @@ const listingDetailRoute = createRoute({
   component: ListingDetailPage,
 });
 
+const shopsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shops",
+  component: ShopsPage,
+});
+
+const shopDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shops/$id",
+  component: ShopDetailPage,
+});
+
+const groupsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/groups",
+  component: GroupsPage,
+});
+
+const groupDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/groups/$id",
+  component: GroupDetailPage,
+});
+
 const forumsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/forums",
@@ -100,6 +128,10 @@ const routeTree = rootRoute.addChildren([
   videoDetailRoute,
   marketplaceRoute,
   listingDetailRoute,
+  shopsRoute,
+  shopDetailRoute,
+  groupsRoute,
+  groupDetailRoute,
   forumsRoute,
   categoryRoute,
   threadRoute,

@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,8 @@ const navLinks = [
   { href: "/" as const, label: "Home" },
   { href: "/videos" as const, label: "Videos" },
   { href: "/marketplace" as const, label: "Marketplace" },
+  { href: "/shops" as const, label: "Shops" },
+  { href: "/groups" as const, label: "Groups" },
   { href: "/forums" as const, label: "Forums" },
 ];
 
@@ -40,115 +42,139 @@ export function Navbar() {
     enabled: !!actor && !isFetching && !!identity,
   });
 
+  const { data: profile } = useQuery({
+    queryKey: ["callerProfile", principal],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getCallerUserProfile();
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-md">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link
           to="/"
-          data-ocid="nav.link"
-          className="flex items-center gap-2 group"
+          className="flex items-center gap-2 font-display font-bold text-xl text-foreground"
+          data-ocid="nav.home.link"
         >
-          <Flame className="h-7 w-7 text-primary animate-ember-float" />
-          <span className="font-display text-xl font-bold text-foreground">
-            Dragon<span className="text-primary">Hub</span>
-          </span>
+          <Flame className="h-6 w-6 text-primary" />
+          Dragon Hub
         </Link>
 
-        {/* Desktop Nav */}
+        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-1">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               to={link.href}
-              data-ocid={`nav.${link.label.toLowerCase()}.link`}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 location.pathname === link.href
-                  ? "text-primary bg-primary/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
+              data-ocid={`nav.${link.label.toLowerCase()}.link`}
             >
               {link.label}
             </Link>
           ))}
-          {!!identity && (
+          {isAdmin && (
             <Link
               to="/admin"
-              data-ocid="nav.admin.link"
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
                 location.pathname === "/admin"
-                  ? "text-primary bg-primary/10"
-                  : isAdmin
-                    ? "text-primary/80 hover:text-primary hover:bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
+              data-ocid="nav.admin.link"
             >
-              <Shield className="h-4 w-4" />
+              <Shield className="h-3.5 w-3.5" />
               Admin
             </Link>
           )}
         </nav>
 
         {/* Right side */}
-        <div className="flex items-center gap-3">
-          {isInitializing ? (
-            <div className="h-9 w-24 bg-muted rounded-md animate-pulse" />
-          ) : identity ? (
+        <div className="flex items-center gap-2">
+          {isInitializing ? null : identity ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-full ring-2 ring-primary/30 hover:ring-primary/60 transition-all"
-                  data-ocid="nav.user.button"
+                <Button
+                  variant="ghost"
+                  className="h-9 w-9 rounded-full p-0"
+                  data-ocid="nav.profile.button"
                 >
                   <Avatar className="h-9 w-9">
-                    <AvatarFallback className="bg-primary/20 text-primary font-bold text-sm">
+                    {profile?.profilePicBlob ? (
+                      <AvatarImage
+                        src={profile.profilePicBlob.getDirectURL()}
+                      />
+                    ) : null}
+                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
                       {shortPrincipal.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-48"
-                data-ocid="nav.dropdown_menu"
+                className="w-56"
+                data-ocid="nav.profile.dropdown_menu"
               >
+                <div className="px-2 py-1.5">
+                  <p className="text-xs text-muted-foreground">Signed in as</p>
+                  <p className="text-sm font-medium truncate">
+                    {shortPrincipal}
+                  </p>
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link
                     to="/profile"
+                    className="cursor-pointer"
                     data-ocid="nav.profile.link"
-                    className="flex items-center gap-2"
                   >
-                    <User className="h-4 w-4" />
-                    <span>{shortPrincipal}</span>
+                    <User className="h-4 w-4 mr-2" /> Profile
                   </Link>
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/admin"
+                      className="cursor-pointer"
+                      data-ocid="nav.admin.dropdown.link"
+                    >
+                      <Shield className="h-4 w-4 mr-2" /> Admin Panel
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={clear}
+                  className="text-destructive cursor-pointer"
                   data-ocid="nav.logout.button"
-                  className="text-destructive focus:text-destructive"
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
+                  <LogOut className="h-4 w-4 mr-2" /> Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Button
               onClick={login}
-              data-ocid="nav.signin.button"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 fire-glow"
+              size="sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              data-ocid="nav.login.button"
             >
-              <Flame className="h-4 w-4 mr-2" />
               Sign In
             </Button>
           )}
 
-          {/* Mobile menu toggle */}
+          {/* Mobile hamburger */}
           <button
             type="button"
-            className="md:hidden p-2 text-muted-foreground hover:text-foreground"
+            className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground"
             onClick={() => setMobileOpen(!mobileOpen)}
             data-ocid="nav.mobile.toggle"
           >
@@ -161,37 +187,32 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Nav */}
+      {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-border/60 bg-background/95 px-4 py-3 flex flex-col gap-1">
+        <div className="md:hidden border-t border-border bg-background/95 px-4 py-3 space-y-1">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               to={link.href}
-              data-ocid={`nav.mobile.${link.label.toLowerCase()}.link`}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                location.pathname === link.href
-                  ? "text-primary bg-primary/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
               onClick={() => setMobileOpen(false)}
+              className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                location.pathname === link.href
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              }`}
+              data-ocid={`nav.mobile.${link.label.toLowerCase()}.link`}
             >
               {link.label}
             </Link>
           ))}
-          {!!identity && (
+          {isAdmin && (
             <Link
               to="/admin"
-              data-ocid="nav.mobile.admin.link"
-              className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${
-                isAdmin
-                  ? "text-primary bg-primary/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
               onClick={() => setMobileOpen(false)}
+              className="block px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2"
+              data-ocid="nav.mobile.admin.link"
             >
-              <Shield className="h-4 w-4" />
-              Admin Panel
+              <Shield className="h-4 w-4" /> Admin
             </Link>
           )}
         </div>

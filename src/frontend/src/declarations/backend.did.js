@@ -49,6 +49,7 @@ export const ForumCategory = IDL.Record({
 export const UserProfile = IDL.Record({
   'bio' : IDL.Text,
   'displayName' : IDL.Text,
+  'profilePicBlob' : IDL.Opt(ExternalBlob),
 });
 export const UserWithRole = IDL.Record({
   'principal' : IDL.Principal,
@@ -211,6 +212,7 @@ export const idlFactory = ({ IDL }) => {
   const UserProfile = IDL.Record({
     'bio' : IDL.Text,
     'displayName' : IDL.Text,
+    'profilePicBlob' : IDL.Opt(ExternalBlob),
   });
   const UserWithRole = IDL.Record({
     'principal' : IDL.Principal,

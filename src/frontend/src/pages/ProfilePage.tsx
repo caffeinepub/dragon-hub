@@ -1,12 +1,13 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Copy, Loader2, Save, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Camera, Check, Copy, Loader2, Save, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ExternalBlob } from "../backend";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useCallerProfile, useSaveProfile } from "../hooks/useQueries";
 
@@ -17,6 +18,9 @@ export function ProfilePage() {
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [copied, setCopied] = useState(false);
+  const [picFile, setPicFile] = useState<File | null>(null);
+  const [picPreview, setPicPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile) {
@@ -25,10 +29,44 @@ export function ProfilePage() {
     }
   }, [profile]);
 
+  // Cleanup object URL on unmount or when preview changes
+  useEffect(() => {
+    return () => {
+      if (picPreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(picPreview);
+      }
+    };
+  }, [picPreview]);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    // Revoke previous preview
+    if (picPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(picPreview);
+    }
+    setPicFile(file);
+    setPicPreview(URL.createObjectURL(file));
+  };
+
   const handleSave = async () => {
     try {
-      await saveProfile.mutateAsync({ displayName, bio });
+      let profilePicBlob: ExternalBlob | undefined = profile?.profilePicBlob;
+      if (picFile) {
+        const bytes = new Uint8Array(await picFile.arrayBuffer());
+        profilePicBlob = ExternalBlob.fromBytes(bytes);
+      }
+      await saveProfile.mutateAsync({ displayName, bio, profilePicBlob });
       toast.success("Profile saved!");
+      setPicFile(null);
     } catch {
       toast.error("Failed to save profile");
     }
@@ -56,6 +94,8 @@ export function ProfilePage() {
       }
     }
   };
+
+  const avatarSrc = picPreview ?? profile?.profilePicBlob?.getDirectURL();
 
   if (!identity) {
     return (
@@ -86,17 +126,60 @@ export function ProfilePage() {
 
       <div className="bg-card border border-border rounded-xl p-6 mb-6">
         <div className="flex items-center gap-4 mb-6">
-          <Avatar className="h-16 w-16">
-            <AvatarFallback className="bg-primary/20 text-primary text-xl font-bold">
-              {principal?.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          {/* Clickable avatar with camera overlay */}
+          <button
+            type="button"
+            className="relative group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-full"
+            onClick={handleAvatarClick}
+            title="Change profile picture"
+            data-ocid="profile.avatar.upload_button"
+          >
+            <Avatar className="h-16 w-16 ring-2 ring-primary/30 group-hover:ring-primary/70 transition-all">
+              {avatarSrc && (
+                <AvatarImage src={avatarSrc} alt="Profile picture" />
+              )}
+              <AvatarFallback className="bg-primary/20 text-primary text-xl font-bold">
+                {principal?.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {/* Camera icon overlay */}
+            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Camera className="h-5 w-5 text-white" />
+            </span>
+          </button>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={handleFileChange}
+            data-ocid="profile.pfp.dropzone"
+          />
+
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-lg">
               {profile?.displayName || "Dragon"}
             </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Click avatar to change picture
+            </p>
           </div>
         </div>
+
+        {picFile && (
+          <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+            <Camera className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span>
+              New photo selected:{" "}
+              <span className="text-foreground font-medium">
+                {picFile.name}
+              </span>{" "}
+              — save to apply
+            </span>
+          </div>
+        )}
 
         {/* Principal ID section */}
         <div className="mb-6">

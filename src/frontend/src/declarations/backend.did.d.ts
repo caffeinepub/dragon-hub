@@ -58,7 +58,11 @@ export interface ThreadWithReplies {
   'thread' : ForumThread,
   'replies' : Array<ThreadReply>,
 }
-export interface UserProfile { 'bio' : string, 'displayName' : string }
+export interface UserProfile {
+  'bio' : string,
+  'displayName' : string,
+  'profilePicBlob' : [] | [ExternalBlob],
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };

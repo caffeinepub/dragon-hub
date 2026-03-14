@@ -5,7 +5,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, CheckCircle, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useListing, useMarkAsSold } from "../hooks/useQueries";
+import { useListing, useMarkListingSold } from "../hooks/useQueries";
 
 function formatPrice(price: bigint): string {
   return `${(Number(price) / 1e8).toFixed(2)} ICP`;
@@ -16,7 +16,7 @@ export function ListingDetailPage() {
   const listingId = BigInt(id ?? "0");
   const { identity } = useInternetIdentity();
   const { data: listing, isLoading } = useListing(listingId);
-  const markAsSold = useMarkAsSold();
+  const markAsSold = useMarkListingSold();
 
   const myPrincipal = identity?.getPrincipal().toString();
   const isOwner = myPrincipal && listing?.owner.toString() === myPrincipal;
