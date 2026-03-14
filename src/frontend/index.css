@@ -1,0 +1,115 @@
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('/assets/fonts/BricolageGrotesque.woff2') format('woff2');
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Figtree';
+  src: url('/assets/fonts/Figtree.woff2') format('woff2');
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dragon Hub Dark Theme - Fire & Shadow */
+    --background: 0.12 0.015 25;
+    --foreground: 0.93 0.01 65;
+
+    --card: 0.16 0.018 25;
+    --card-foreground: 0.93 0.01 65;
+
+    --popover: 0.14 0.018 25;
+    --popover-foreground: 0.93 0.01 65;
+
+    /* Molten orange primary */
+    --primary: 0.68 0.19 45;
+    --primary-foreground: 0.1 0.02 25;
+
+    /* Deep crimson secondary */
+    --secondary: 0.22 0.04 25;
+    --secondary-foreground: 0.85 0.03 55;
+
+    --muted: 0.2 0.025 25;
+    --muted-foreground: 0.55 0.03 45;
+
+    /* Gold accent */
+    --accent: 0.76 0.15 75;
+    --accent-foreground: 0.1 0.02 25;
+
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 0.95 0.01 65;
+
+    --border: 0.25 0.03 25;
+    --input: 0.22 0.025 25;
+    --ring: 0.68 0.19 45;
+
+    --radius: 0.5rem;
+
+    --chart-1: 0.68 0.19 45;
+    --chart-2: 0.76 0.15 75;
+    --chart-3: 0.55 0.22 25;
+    --chart-4: 0.45 0.15 280;
+    --chart-5: 0.6 0.18 140;
+
+    --sidebar: 0.14 0.018 25;
+    --sidebar-foreground: 0.93 0.01 65;
+    --sidebar-primary: 0.68 0.19 45;
+    --sidebar-primary-foreground: 0.1 0.02 25;
+    --sidebar-accent: 0.2 0.025 25;
+    --sidebar-accent-foreground: 0.85 0.03 55;
+    --sidebar-border: 0.25 0.03 25;
+    --sidebar-ring: 0.68 0.19 45;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.68 0.19 45 / 0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, oklch(0.55 0.22 25 / 0.06) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .fire-glow {
+    box-shadow: 0 0 20px oklch(0.68 0.19 45 / 0.3), 0 0 40px oklch(0.68 0.19 45 / 0.1);
+  }
+
+  .gold-glow {
+    box-shadow: 0 0 20px oklch(0.76 0.15 75 / 0.3);
+  }
+
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px oklch(0.68 0.19 45 / 0.2);
+  }
+
+  .ember-border {
+    border-image: linear-gradient(135deg, oklch(0.68 0.19 45), oklch(0.76 0.15 75), oklch(0.55 0.22 25)) 1;
+  }
+}
