@@ -31,6 +31,7 @@ import { Principal as PrincipalClass } from "@icp-sdk/core/principal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  CheckCircle2,
   KeyRound,
   Loader2,
   Shield,
@@ -196,25 +197,40 @@ function UserRow({
 
 function ClaimAdminSection({
   actor,
+  identity,
   onSuccess,
-}: { actor: any; onSuccess: () => void }) {
+}: { actor: any; identity: any; onSuccess: () => void }) {
   const [isClaiming, setIsClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+
+  const principalText = identity?.getPrincipal()?.toString() ?? "";
 
   const handleClaim = async () => {
     setIsClaiming(true);
     try {
       const result = await actor.claimFirstAdmin();
-      if (result === false) {
-        toast.error("An admin already exists. Ask them to grant you access.");
-      } else {
-        toast.success("Admin access granted!");
+      if (result === true) {
+        setClaimed(true);
+        toast.success("Admin access granted! Reloading...");
         setTimeout(() => {
           onSuccess();
           window.location.reload();
-        }, 1200);
+        }, 1500);
+      } else {
+        // result is false: either anonymous caller or admin already exists
+        if (!principalText || principalText === "2vxsx-fae") {
+          toast.error(
+            "You appear to be signed out. Please sign in with Internet Identity first.",
+          );
+        } else {
+          toast.error(
+            "An admin already exists on this app. Ask them to promote you from the Admin panel.",
+          );
+        }
       }
-    } catch {
-      toast.error("Failed to claim admin access. Please try again.");
+    } catch (err) {
+      console.error("claimFirstAdmin error:", err);
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setIsClaiming(false);
     }
@@ -232,34 +248,51 @@ function ClaimAdminSection({
           </div>
           <div>
             <CardTitle className="font-display text-lg text-foreground">
-              Initialize Admin Access
+              Claim Admin Access
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
-              No admin exists yet — click below to claim admin for your account.
+              If no admin exists yet, click below to become the first admin.
             </CardDescription>
           </div>
         </div>
       </CardHeader>
       <Separator />
-      <CardContent className="pt-5">
-        <Button
-          data-ocid="admin.claim.submit_button"
-          onClick={handleClaim}
-          disabled={isClaiming}
-          className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-body font-semibold"
-        >
-          {isClaiming ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Claiming...
-            </>
-          ) : (
-            <>
-              <Shield className="mr-2 h-4 w-4" />
-              Claim Admin Access
-            </>
-          )}
-        </Button>
+      <CardContent className="pt-5 space-y-4">
+        {principalText && (
+          <div className="rounded-md bg-muted/40 border border-border/50 px-3 py-2">
+            <p className="text-xs text-muted-foreground font-body mb-1">
+              Your Principal ID (signed in as):
+            </p>
+            <p className="font-mono text-xs text-foreground break-all select-all">
+              {principalText}
+            </p>
+          </div>
+        )}
+        {claimed ? (
+          <div className="flex items-center gap-2 text-green-500 font-body text-sm">
+            <CheckCircle2 className="h-4 w-4" />
+            Admin granted! Reloading...
+          </div>
+        ) : (
+          <Button
+            data-ocid="admin.claim.submit_button"
+            onClick={handleClaim}
+            disabled={isClaiming}
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-body font-semibold"
+          >
+            {isClaiming ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Claiming...
+              </>
+            ) : (
+              <>
+                <Shield className="mr-2 h-4 w-4" />
+                Claim Admin Access
+              </>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -314,7 +347,11 @@ export function AdminPage() {
     queryKey: ["isAdmin", identity?.getPrincipal().toString()],
     queryFn: async () => {
       if (!actor) return false;
-      return actor.isCallerAdmin();
+      try {
+        return await actor.isCallerAdmin();
+      } catch {
+        return false;
+      }
     },
     enabled: !!actor && !isFetching && !!identity,
   });
@@ -435,13 +472,17 @@ export function AdminPage() {
               Access Denied
             </CardTitle>
             <CardDescription>
-              You don&apos;t have permission to view this page. Admin privileges
-              are required.
+              You don&apos;t have admin privileges yet. If you&apos;re the first
+              user, claim admin below.
             </CardDescription>
           </CardHeader>
         </Card>
         {actor && (
-          <ClaimAdminSection actor={actor} onSuccess={() => refetchAdmin()} />
+          <ClaimAdminSection
+            actor={actor}
+            identity={identity}
+            onSuccess={() => refetchAdmin()}
+          />
         )}
       </main>
     );

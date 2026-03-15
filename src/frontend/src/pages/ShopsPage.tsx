@@ -29,9 +29,16 @@ export function ShopsPage() {
   const { identity } = useInternetIdentity();
   const { data: shops, isLoading } = useAllShops();
   const principal = identity?.getPrincipal();
-  const { data: myShop } = useShopByOwner(principal);
+  const { data: myShopRaw } = useShopByOwner(principal);
   const { data: canCreateShop } = useIsCreatorOrAdmin();
   const createShop = useCreateShop();
+
+  // Candid optionals come back as [] | [Shop] — unwrap properly
+  const myShop = Array.isArray(myShopRaw)
+    ? myShopRaw.length > 0
+      ? myShopRaw[0]
+      : null
+    : (myShopRaw ?? null);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
