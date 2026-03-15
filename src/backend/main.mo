@@ -33,6 +33,15 @@ actor {
     AccessControl.isAdmin(accessControlState, p) or isCreator(p);
   };
 
+  // Claim admin access -- only works when no admin exists yet
+  public shared ({ caller }) func claimFirstAdmin() : async Bool {
+    if (caller.isAnonymous()) { return false };
+    if (accessControlState.adminAssigned) { return false };
+    accessControlState.userRoles.add(caller, #admin);
+    accessControlState.adminAssigned := true;
+    return true;
+  };
+
   // Admin can grant/revoke creator status
   public shared ({ caller }) func setCreatorStatus(user : Principal, status : Bool) : async () {
     if (not AccessControl.isAdmin(accessControlState, caller)) {

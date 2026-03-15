@@ -135,6 +135,7 @@ export interface _SERVICE {
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getVideo' : ActorMethod<[VideoId], [] | [Video]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'claimFirstAdmin' : ActorMethod<[], boolean>,
   'likeVideo' : ActorMethod<[VideoId], undefined>,
   'markAsSold' : ActorMethod<[ListingId], undefined>,
   'removeUser' : ActorMethod<[Principal], undefined>,

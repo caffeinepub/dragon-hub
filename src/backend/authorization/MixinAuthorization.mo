@@ -3,12 +3,7 @@ import Prim "mo:prim";
 import Runtime "mo:core/Runtime";
 
 mixin (accessControlState : AccessControl.AccessControlState) {
-  // Claim admin with no token -- only succeeds if no admin exists yet.
-  public shared ({ caller }) func claimFirstAdmin() : async Bool {
-    AccessControl.claimFirstAdmin(accessControlState, caller);
-  };
-
-  // Initialize auth (first caller becomes admin if token matches, else user)
+  // Initialize auth (first caller becomes admin, others become users)
   public shared ({ caller }) func _initializeAccessControlWithSecret(userSecret : Text) : async () {
     switch (Prim.envVar<system>("CAFFEINE_ADMIN_TOKEN")) {
       case (null) {
@@ -25,6 +20,7 @@ mixin (accessControlState : AccessControl.AccessControlState) {
   };
 
   public shared ({ caller }) func assignCallerUserRole(user : Principal, role : AccessControl.UserRole) : async () {
+    // Admin-only check happens inside
     AccessControl.assignRole(accessControlState, caller, user, role);
   };
 

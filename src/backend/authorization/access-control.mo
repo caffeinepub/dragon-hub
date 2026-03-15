@@ -3,8 +3,6 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 
 module {
-  // NOTE: Do NOT add new variants here -- this type is stored in stable memory.
-  // Extending it requires a migration. Use separate Maps in the actor for new roles (e.g. creator).
   public type UserRole = {
     #admin;
     #user;
@@ -23,22 +21,15 @@ module {
     };
   };
 
-  // Claim admin without a token -- only works when no admin has been assigned yet.
-  public func claimFirstAdmin(state : AccessControlState, caller : Principal) : Bool {
-    if (caller.isAnonymous()) { return false };
-    if (state.adminAssigned) { return false };
-    state.userRoles.add(caller, #admin);
-    state.adminAssigned := true;
-    true;
-  };
-
-  // Register caller as user (or admin if first and token matches)
+  // First principal that calls this function becomes admin (no token needed when no admin exists).
+  // Subsequent callers become regular users.
   public func initialize(state : AccessControlState, caller : Principal, adminToken : Text, userProvidedToken : Text) {
     if (caller.isAnonymous()) { return };
     switch (state.userRoles.get(caller)) {
       case (?_) {};
       case (null) {
-        if (not state.adminAssigned and userProvidedToken == adminToken) {
+        if (not state.adminAssigned) {
+          // No admin yet -- first signed-in user becomes admin automatically
           state.userRoles.add(caller, #admin);
           state.adminAssigned := true;
         } else {
@@ -52,7 +43,9 @@ module {
     if (caller.isAnonymous()) { return #guest };
     switch (state.userRoles.get(caller)) {
       case (?role) { role };
-      case (null) { #guest };
+      case (null) {
+        Runtime.trap("User is not registered");
+      };
     };
   };
 
@@ -61,16 +54,13 @@ module {
       Runtime.trap("Unauthorized: Only admins can assign user roles");
     };
     state.userRoles.add(user, role);
-    if (role == #admin) {
-      state.adminAssigned := true;
-    };
   };
 
   public func hasPermission(state : AccessControlState, caller : Principal, requiredRole : UserRole) : Bool {
     let userRole = getUserRole(state, caller);
-    if (userRole == #admin) { return true };
-    if (requiredRole == #guest) { return true };
-    userRole == requiredRole;
+    if (userRole == #admin or requiredRole == #guest) { true } else {
+      userRole == requiredRole;
+    };
   };
 
   public func isAdmin(state : AccessControlState, caller : Principal) : Bool {
