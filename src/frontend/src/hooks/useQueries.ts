@@ -124,6 +124,18 @@ export function useIsAdmin() {
   });
 }
 
+export function useIsCreatorOrAdmin() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["isCreatorOrAdmin"],
+    queryFn: async () => {
+      if (!actor) return false;
+      return (actor as any).isCallerCreatorOrAdmin();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
 export function usePublicUserProfile(
   principal: PrincipalClass | string | null | undefined,
 ) {

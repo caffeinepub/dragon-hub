@@ -21,6 +21,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAllShops,
   useCreateShop,
+  useIsCreatorOrAdmin,
   useShopByOwner,
 } from "../hooks/useQueries";
 
@@ -29,6 +30,7 @@ export function ShopsPage() {
   const { data: shops, isLoading } = useAllShops();
   const principal = identity?.getPrincipal();
   const { data: myShop } = useShopByOwner(principal);
+  const { data: canCreateShop } = useIsCreatorOrAdmin();
   const createShop = useCreateShop();
 
   const [open, setOpen] = useState(false);
@@ -63,6 +65,7 @@ export function ShopsPage() {
           </p>
         </div>
         {identity &&
+          canCreateShop &&
           (myShop ? (
             <Link to="/shops/$id" params={{ id: myShop.id.toString() }}>
               <Button

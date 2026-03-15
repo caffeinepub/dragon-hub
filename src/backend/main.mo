@@ -54,6 +54,11 @@ actor {
     };
   };
 
+  // Check if caller is admin or creator
+  public query ({ caller }) func isCallerCreatorOrAdmin() : async Bool {
+    isCreatorOrAdmin(caller);
+  };
+
   // User Profiles
   type UserProfile = {
     displayName : Text;
@@ -474,8 +479,8 @@ actor {
   let shopProducts = Map.empty<ShopProductId, ShopProduct>();
 
   public shared ({ caller }) func createShop(name : Text, description : Text, bannerBlob : ?Storage.ExternalBlob) : async ShopId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create shops");
+    if (not isCreatorOrAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins or creators can create shops");
     };
     let id = nextShopId;
     nextShopId += 1;

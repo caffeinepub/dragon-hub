@@ -154,6 +154,7 @@ export interface backendInterface {
     getPublicUserProfile(user: Principal): Promise<UserProfile | null>;
     getVideo(id: VideoId): Promise<Video | null>;
     isCallerAdmin(): Promise<boolean>;
+    isCallerCreatorOrAdmin(): Promise<boolean>;
     likeVideo(id: VideoId): Promise<void>;
     markAsSold(id: ListingId): Promise<void>;
     removeUser(user: Principal): Promise<void>;
