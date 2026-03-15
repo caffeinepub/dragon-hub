@@ -17,6 +17,7 @@ import { ArrowLeft, Loader2, MessageSquare, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { UserAvatar } from "../components/UserAvatar";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAllCategories,
@@ -145,8 +146,8 @@ export function CategoryPage() {
 
       {isLoading ? (
         <div className="space-y-3" data-ocid="category.threads.loading_state">
-          {SKELETON_IDS.map((id) => (
-            <Skeleton key={id} className="h-20 rounded-xl" />
+          {SKELETON_IDS.map((sid) => (
+            <Skeleton key={sid} className="h-20 rounded-xl" />
           ))}
         </div>
       ) : threads?.length === 0 ? (
@@ -197,10 +198,12 @@ export function CategoryPage() {
                       <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                         {t.title}
                       </h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        by {t.author.toString().slice(0, 8)}... &middot;{" "}
-                        {formatDate(t.timestamp)}
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <UserAvatar principal={t.author} size="sm" />
+                        <span className="text-xs text-muted-foreground/60">
+                          &middot; {formatDate(t.timestamp)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </Card>

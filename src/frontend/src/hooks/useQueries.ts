@@ -1,3 +1,4 @@
+import { Principal as PrincipalClass } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalBlob } from "../backend";
 import type { UserProfile } from "../backend";
@@ -120,6 +121,26 @@ export function useIsAdmin() {
       return actor.isCallerAdmin();
     },
     enabled: !!actor && !isFetching,
+  });
+}
+
+export function usePublicUserProfile(
+  principal: PrincipalClass | string | null | undefined,
+) {
+  const { actor, isFetching } = useActor();
+  const key = principal?.toString();
+  return useQuery({
+    queryKey: ["publicProfile", key],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      const p =
+        typeof principal === "string"
+          ? PrincipalClass.fromText(principal)
+          : principal;
+      return actor.getUserProfile(p);
+    },
+    enabled: !!actor && !isFetching && !!principal,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

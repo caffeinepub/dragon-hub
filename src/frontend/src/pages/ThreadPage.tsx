@@ -1,4 +1,3 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,6 +6,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { UserAvatar } from "../components/UserAvatar";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useReplyToThread, useThreadWithReplies } from "../hooks/useQueries";
 
@@ -77,19 +77,10 @@ export function ThreadPage() {
       <div className="bg-card border border-border rounded-xl p-6 mb-6">
         <h1 className="font-display text-2xl font-bold mb-4">{thread.title}</h1>
         <div className="flex items-center gap-3 mb-4">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary/20 text-primary text-xs">
-              {thread.author.toString().slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="text-sm font-medium">
-              {thread.author.toString().slice(0, 12)}...
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {formatDate(thread.timestamp)}
-            </p>
-          </div>
+          <UserAvatar principal={thread.author} size="md" />
+          <p className="text-xs text-muted-foreground">
+            {formatDate(thread.timestamp)}
+          </p>
         </div>
         <p className="text-foreground leading-relaxed whitespace-pre-wrap">
           {thread.body}
@@ -116,16 +107,12 @@ export function ThreadPage() {
                 className="flex gap-3"
                 data-ocid={`thread.reply.item.${i + 1}`}
               >
-                <Avatar className="h-8 w-8 flex-shrink-0">
-                  <AvatarFallback className="bg-muted text-xs">
-                    {r.author.toString().slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="flex-shrink-0 pt-1">
+                  <UserAvatar principal={r.author} size="sm" showName={false} />
+                </div>
                 <div className="flex-1 bg-card border border-border rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {r.author.toString().slice(0, 12)}...
-                    </span>
+                    <UserAvatar principal={r.author} size="sm" />
                     <span className="text-xs text-muted-foreground/60">
                       {formatDate(r.timestamp)}
                     </span>

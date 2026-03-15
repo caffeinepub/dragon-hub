@@ -41,6 +41,7 @@ export interface UserWithRole {
     principal: Principal;
     role: UserRole;
     profile: UserProfile;
+    isCreator: boolean;
 }
 export interface Listing {
     id: ListingId;
@@ -150,6 +151,7 @@ export interface backendInterface {
     getThreadWithReplies(threadId: ThreadId): Promise<ThreadWithReplies | null>;
     getThreadsInCategory(categoryId: CategoryId): Promise<Array<ForumThread>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getPublicUserProfile(user: Principal): Promise<UserProfile | null>;
     getVideo(id: VideoId): Promise<Video | null>;
     isCallerAdmin(): Promise<boolean>;
     likeVideo(id: VideoId): Promise<void>;

@@ -1,4 +1,3 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,6 +5,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Heart, Loader2, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { UserAvatar } from "../components/UserAvatar";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddComment,
@@ -157,8 +157,8 @@ export function VideoDetailPage() {
                 className="space-y-3"
                 data-ocid="video.comments.loading_state"
               >
-                {COMMENT_SKELETON_IDS.map((id) => (
-                  <div key={id} className="flex gap-3">
+                {COMMENT_SKELETON_IDS.map((skId) => (
+                  <div key={skId} className="flex gap-3">
                     <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
                     <div className="flex-1 space-y-1">
                       <Skeleton className="h-3 w-1/4" />
@@ -182,16 +182,18 @@ export function VideoDetailPage() {
                     className="flex gap-3"
                     data-ocid={`video.comment.item.${i + 1}`}
                   >
-                    <Avatar className="h-8 w-8 flex-shrink-0">
-                      <AvatarFallback className="bg-muted text-xs">
-                        {c.author.toString().slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      principal={c.author}
+                      size="sm"
+                      showName={false}
+                    />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {c.author.toString().slice(0, 8)}...
-                        </span>
+                        <UserAvatar
+                          principal={c.author}
+                          size="sm"
+                          showName={true}
+                        />
                         <span className="text-xs text-muted-foreground/60">
                           {formatDate(c.timestamp)}
                         </span>

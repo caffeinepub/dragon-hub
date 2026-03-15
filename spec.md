@@ -1,25 +1,28 @@
 # Dragon Hub
 
 ## Current State
-Dragon Hub has: videos, marketplace listings, forums (categories/threads/replies), user profiles with profile pic, admin panel with user management. Authorization and blob storage components are active.
+Full platform with Videos, Marketplace, Shops, Forums, Groups, Admin. Authorization uses admin/user/guest roles. Admin bootstrap is broken: the claim button sends hardcoded token that never matches env var. getUserRole traps for unregistered users causing isCallerAdmin to throw.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Shops**: Users can create a shop (name, description, banner image). Each shop can have multiple products (title, description, price, image). Shop pages show the owner's products. Users can browse all shops.
-- **Groups**: Discord-like groups. Users can create groups (name, description, icon). Each group has text channels. Members can join groups and post messages in channels.
-- **Shop route**: `/shops` (browse all), `/shops/:id` (shop detail + products)
-- **Groups route**: `/groups` (browse all), `/groups/:id` (group detail with channels + messages)
-- **Nav links**: Add Shops and Groups to navbar
+- creator role (between admin and user)
+- claimFirstAdmin() backend: claim admin only when no admin exists, no token needed
+- Creator permissions: manage own content
+- Admin permissions: full control
 
 ### Modify
-- Marketplace remains but Shops are a separate concept (a shop is a storefront, marketplace listings are individual items)
-- Navbar to include new routes
+- getUserRole returns guest instead of trapping for unregistered users
+- Claim Admin button calls claimFirstAdmin()
+- Role dropdowns include Admin, Creator, User, Guest
+- Forum category creation: allow creators too
 
 ### Remove
-- Nothing removed
+- Hardcoded init secret from frontend
 
 ## Implementation Plan
-1. Backend: Add Shop, ShopProduct, Group, GroupChannel, GroupMessage types and CRUD methods
-2. Frontend: ShopsPage, ShopDetailPage, GroupsPage, GroupDetailPage components
-3. Wire new routes in App.tsx and add nav links
+1. Modify access-control.mo: add creator role, claimFirstAdmin, fix getUserRole
+2. Modify MixinAuthorization.mo: expose claimFirstAdmin
+3. Update main.mo: creator permissions, admin can delete all content
+4. Update AdminPage.tsx: use claimFirstAdmin, add Creator role option
+5. Validate and deploy

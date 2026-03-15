@@ -28,12 +28,13 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Principal } from "@icp-sdk/core/principal";
 import { Principal as PrincipalClass } from "@icp-sdk/core/principal";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   KeyRound,
   Loader2,
   Shield,
+  Sparkles,
   Trash2,
   UserCog,
   Users,
@@ -44,15 +45,30 @@ import { UserRole, type UserWithRole } from "../backend";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
-function roleBadge(role: UserRole) {
-  if (role === UserRole.admin)
+/** Derive a display role string from the UserWithRole fields */
+function getDisplayRole(user: UserWithRole): string {
+  if (user.role === UserRole.admin) return "admin";
+  if (user.isCreator) return "creator";
+  if (user.role === UserRole.user) return "user";
+  return "guest";
+}
+
+function roleBadge(displayRole: string) {
+  if (displayRole === "admin")
     return (
       <Badge className="bg-primary/20 text-primary border-primary/30 font-body text-xs">
         <Shield className="h-3 w-3 mr-1" />
         Admin
       </Badge>
     );
-  if (role === UserRole.user)
+  if (displayRole === "creator")
+    return (
+      <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30 font-body text-xs">
+        <Sparkles className="h-3 w-3 mr-1" />
+        Creator
+      </Badge>
+    );
+  if (displayRole === "user")
     return (
       <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/30 font-body text-xs">
         <Users className="h-3 w-3 mr-1" />
@@ -83,21 +99,17 @@ function UserRow({
 }: {
   user: UserWithRole;
   index: number;
-  onRoleChange: (principal: Principal, role: UserRole) => Promise<void>;
+  onRoleChange: (principal: Principal, roleString: string) => Promise<void>;
   onRemove: (principal: Principal) => void;
 }) {
-  const [selectedRole, setSelectedRole] = useState<string>(user.role as string);
+  const initialRole = getDisplayRole(user);
+  const [selectedRole, setSelectedRole] = useState<string>(initialRole);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const roleMap: Record<string, UserRole> = {
-        admin: UserRole.admin,
-        user: UserRole.user,
-        guest: UserRole.guest,
-      };
-      await onRoleChange(user.principal, roleMap[selectedRole]);
+      await onRoleChange(user.principal, selectedRole);
     } finally {
       setSaving(false);
     }
@@ -124,7 +136,7 @@ function UserRow({
             {truncatePrincipal(user.principal)}
           </p>
         </div>
-        <div className="hidden sm:block">{roleBadge(user.role)}</div>
+        <div className="hidden sm:block">{roleBadge(initialRole)}</div>
       </div>
 
       {/* Role selector + actions */}
@@ -132,7 +144,7 @@ function UserRow({
         <Select value={selectedRole} onValueChange={setSelectedRole}>
           <SelectTrigger
             data-ocid={`admin.users.role_select.${index}`}
-            className="w-28 h-8 text-xs bg-background border-border focus:ring-primary"
+            className="w-32 h-8 text-xs bg-background border-border focus:ring-primary"
           >
             <SelectValue />
           </SelectTrigger>
@@ -140,6 +152,11 @@ function UserRow({
             <SelectItem value="admin">
               <span className="flex items-center gap-1.5 text-xs">
                 <Shield className="h-3 w-3 text-primary" /> Admin
+              </span>
+            </SelectItem>
+            <SelectItem value="creator">
+              <span className="flex items-center gap-1.5 text-xs">
+                <Sparkles className="h-3 w-3 text-amber-400" /> Creator
               </span>
             </SelectItem>
             <SelectItem value="user">
@@ -157,7 +174,7 @@ function UserRow({
           data-ocid={`admin.users.save_button.${index}`}
           size="sm"
           onClick={handleSave}
-          disabled={saving || selectedRole === (user.role as string)}
+          disabled={saving || selectedRole === initialRole}
           className="h-8 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90 font-body"
         >
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
@@ -186,12 +203,16 @@ function ClaimAdminSection({
   const handleClaim = async () => {
     setIsClaiming(true);
     try {
-      await actor._initializeAccessControlWithSecret("init");
-      toast.success("Admin access granted!");
-      setTimeout(() => {
-        onSuccess();
-        window.location.reload();
-      }, 1200);
+      const result = await actor.claimFirstAdmin();
+      if (result === false) {
+        toast.error("An admin already exists. Ask them to grant you access.");
+      } else {
+        toast.success("Admin access granted!");
+        setTimeout(() => {
+          onSuccess();
+          window.location.reload();
+        }, 1200);
+      }
     } catch {
       toast.error("Failed to claim admin access. Please try again.");
     } finally {
@@ -214,7 +235,7 @@ function ClaimAdminSection({
               Initialize Admin Access
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
-              Sign in and click below to set yourself as admin.
+              No admin exists yet — click below to claim admin for your account.
             </CardDescription>
           </div>
         </div>
@@ -242,6 +263,37 @@ function ClaimAdminSection({
       </CardContent>
     </Card>
   );
+}
+
+/** Apply a role string to a user via the correct backend calls */
+async function applyRoleString(
+  actor: any,
+  principal: Principal,
+  roleString: string,
+): Promise<void> {
+  switch (roleString) {
+    case "admin":
+      await actor.assignCallerUserRole(principal, UserRole.admin);
+      break;
+    case "creator":
+      await Promise.all([
+        actor.assignCallerUserRole(principal, UserRole.user),
+        actor.setCreatorStatus(principal, true),
+      ]);
+      break;
+    case "user":
+      await Promise.all([
+        actor.assignCallerUserRole(principal, UserRole.user),
+        actor.setCreatorStatus(principal, false),
+      ]);
+      break;
+    default:
+      await Promise.all([
+        actor.assignCallerUserRole(principal, UserRole.guest),
+        actor.setCreatorStatus(principal, false),
+      ]);
+      break;
+  }
 }
 
 export function AdminPage() {
@@ -280,10 +332,10 @@ export function AdminPage() {
     enabled: !!actor && !isFetching && !!isAdmin,
   });
 
-  const handleRoleChange = async (principal: Principal, role: UserRole) => {
+  const handleRoleChange = async (principal: Principal, roleString: string) => {
     if (!actor) return;
     try {
-      await actor.assignCallerUserRole(principal, role);
+      await applyRoleString(actor, principal, roleString);
       toast.success("Role updated successfully");
       await refetchUsers();
       queryClient.invalidateQueries({ queryKey: ["isAdmin"] });
@@ -319,12 +371,7 @@ export function AdminPage() {
         setIsAssigning(false);
         return;
       }
-      const roleMap: Record<string, UserRole> = {
-        admin: UserRole.admin,
-        user: UserRole.user,
-        guest: UserRole.guest,
-      };
-      await actor.assignCallerUserRole(principal, roleMap[selectedRole]);
+      await applyRoleString(actor, principal, selectedRole);
       toast.success(`Role "${selectedRole}" assigned successfully`);
       setPrincipalId("");
       setSelectedRole("");
@@ -417,6 +464,36 @@ export function AdminPage() {
             </p>
           </div>
         </div>
+
+        {/* Role legend */}
+        <Card className="border-border bg-card/60">
+          <CardContent className="pt-4 pb-4">
+            <p className="font-body text-xs text-muted-foreground mb-3 font-semibold uppercase tracking-wide">
+              Role Permissions
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm font-body">
+              <div className="flex items-start gap-2">
+                <Shield className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-semibold text-foreground">Admin</span>
+                  <p className="text-xs text-muted-foreground">
+                    Add/delete members, shops, channels, groups, forums, all
+                    content
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Sparkles className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-semibold text-foreground">Creator</span>
+                  <p className="text-xs text-muted-foreground">
+                    Make and manage own forum, channel, shop, group, comments
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── ALL USERS ── */}
         <Card className="border-border bg-card shadow-lg">
@@ -526,6 +603,12 @@ export function AdminPage() {
                   <SelectItem value="admin">
                     <span className="flex items-center gap-2">
                       <Shield className="h-3.5 w-3.5 text-primary" /> Admin
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="creator">
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-400" />{" "}
+                      Creator
                     </span>
                   </SelectItem>
                   <SelectItem value="user">

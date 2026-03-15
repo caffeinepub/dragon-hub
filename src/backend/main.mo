@@ -19,6 +19,32 @@ actor {
   include MixinAuthorization(accessControlState);
   include MixinStorage();
 
+  // Separate stable Map for creator role -- avoids UserRole type migration
+  let creatorPrincipals = Map.empty<Principal, Bool>();
+
+  func isCreator(p : Principal) : Bool {
+    switch (creatorPrincipals.get(p)) {
+      case (?true) { true };
+      case (_) { false };
+    };
+  };
+
+  func isCreatorOrAdmin(p : Principal) : Bool {
+    AccessControl.isAdmin(accessControlState, p) or isCreator(p);
+  };
+
+  // Admin can grant/revoke creator status
+  public shared ({ caller }) func setCreatorStatus(user : Principal, status : Bool) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can set creator status");
+    };
+    if (status) {
+      creatorPrincipals.add(user, true);
+    } else {
+      creatorPrincipals.remove(user);
+    };
+  };
+
   // User Profiles
   type UserProfile = {
     displayName : Text;
@@ -49,10 +75,16 @@ actor {
     userProfiles.get(user);
   };
 
+  // Public profile lookup (display name + avatar only, for showing in comments/posts)
+  public query func getPublicUserProfile(user : Principal) : async ?UserProfile {
+    userProfiles.get(user);
+  };
+
   type UserWithRole = {
     principal : Principal;
     profile : UserProfile;
     role : AccessControl.UserRole;
+    isCreator : Bool;
   };
 
   public query ({ caller }) func getAllUsers() : async [UserWithRole] {
@@ -67,6 +99,7 @@ actor {
           principal = user;
           profile;
           role;
+          isCreator = isCreator(user);
         };
         usersWithRoles.add(userWithRole);
       }
@@ -79,6 +112,7 @@ actor {
       Runtime.trap("Unauthorized: Only admins can remove users");
     };
     userProfiles.remove(user);
+    creatorPrincipals.remove(user);
   };
 
   // Videos
@@ -282,8 +316,8 @@ actor {
   let categories = Map.empty<CategoryId, ForumCategory>();
 
   public shared ({ caller }) func createCategory(name : Text, description : Text) : async CategoryId {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can create categories");
+    if (not isCreatorOrAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins or creators can create categories");
     };
     let id = nextCategoryId;
     nextCategoryId += 1;
@@ -502,7 +536,9 @@ actor {
         switch (shops.get(product.shopId)) {
           case (null) { Runtime.trap("Shop not found") };
           case (?shop) {
-            if (shop.owner != caller) { Runtime.trap("Only shop owner can delete products") };
+            if (shop.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+              Runtime.trap("Only shop owner or admin can delete products");
+            };
           };
         };
         shopProducts.remove(productId);
@@ -624,7 +660,7 @@ actor {
       case (null) { Runtime.trap("Group not found") };
       case (?group) {
         if (group.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
-          Runtime.trap("Only group owner can create channels");
+          Runtime.trap("Only group owner or admin can create channels");
         };
       };
     };

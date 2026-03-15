@@ -80,17 +80,21 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          {isAdmin && (
+          {identity && (
             <Link
               to="/admin"
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
                 location.pathname === "/admin"
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  : isAdmin
+                    ? "text-primary/80 hover:text-primary hover:bg-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
               data-ocid="nav.admin.link"
             >
-              <Shield className="h-3.5 w-3.5" />
+              <Shield
+                className={`h-3.5 w-3.5 ${isAdmin ? "text-primary" : ""}`}
+              />
               Admin
             </Link>
           )}
@@ -139,17 +143,16 @@ export function Navbar() {
                     <User className="h-4 w-4 mr-2" /> Profile
                   </Link>
                 </DropdownMenuItem>
-                {isAdmin && (
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to="/admin"
-                      className="cursor-pointer"
-                      data-ocid="nav.admin.dropdown.link"
-                    >
-                      <Shield className="h-4 w-4 mr-2" /> Admin Panel
-                    </Link>
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem asChild>
+                  <Link
+                    to="/admin"
+                    className="cursor-pointer"
+                    data-ocid="nav.admin.dropdown.link"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    {isAdmin ? "Admin Panel" : "Claim Admin"}
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={clear}
@@ -205,14 +208,19 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          {isAdmin && (
+          {identity && (
             <Link
               to="/admin"
               onClick={() => setMobileOpen(false)}
-              className="block px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2"
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                isAdmin
+                  ? "text-primary hover:bg-primary/10"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              }`}
               data-ocid="nav.mobile.admin.link"
             >
-              <Shield className="h-4 w-4" /> Admin
+              <Shield className={`h-4 w-4 ${isAdmin ? "text-primary" : ""}`} />
+              {isAdmin ? "Admin Panel" : "Admin / Claim Access"}
             </Link>
           )}
         </div>

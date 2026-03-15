@@ -116,6 +116,7 @@ export interface UserWithRole {
     principal: Principal;
     role: UserRole;
     profile: UserProfile;
+    isCreator: boolean;
 }
 export interface Listing {
     id: ListingId;
