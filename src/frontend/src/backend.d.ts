@@ -136,6 +136,7 @@ export interface GroupMessage {
 export interface backendInterface {
     addComment(videoId: VideoId, text: string): Promise<CommentId>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    claimFirstAdmin(): Promise<boolean>;
     createCategory(name: string, description: string): Promise<CategoryId>;
     createListing(title: string, description: string, price: bigint, image: ExternalBlob): Promise<ListingId>;
     createThread(categoryId: CategoryId, title: string, body: string): Promise<ThreadId>;
@@ -157,9 +158,11 @@ export interface backendInterface {
     isCallerCreatorOrAdmin(): Promise<boolean>;
     likeVideo(id: VideoId): Promise<void>;
     markAsSold(id: ListingId): Promise<void>;
+    registerCallerAsUser(): Promise<void>;
     removeUser(user: Principal): Promise<void>;
     replyToThread(threadId: ThreadId, text: string): Promise<ReplyId>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    setCreatorStatus(user: Principal, status: boolean): Promise<void>;
     // Shops
     createShop(name: string, description: string, bannerBlob: ExternalBlob | null): Promise<ShopId>;
     getAllShops(): Promise<Array<Shop>>;

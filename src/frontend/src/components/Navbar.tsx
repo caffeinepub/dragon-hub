@@ -10,7 +10,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Flame, LogOut, Menu, Shield, User, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
@@ -32,6 +32,18 @@ export function Navbar() {
   const shortPrincipal = principal
     ? `${principal.slice(0, 5)}...${principal.slice(-3)}`
     : "";
+
+  // Auto-register user when they sign in so they appear in members list
+  useEffect(() => {
+    if (actor && identity && !isFetching) {
+      // registerCallerAsUser exists in the Motoko backend but is not yet in the
+      // generated backend.ts binding — use a runtime call via any cast.
+      const a = actor as any;
+      if (typeof a.registerCallerAsUser === "function") {
+        a.registerCallerAsUser().catch(() => {});
+      }
+    }
+  }, [actor, identity, isFetching]);
 
   const { data: isAdmin } = useQuery({
     queryKey: ["isAdmin", principal],

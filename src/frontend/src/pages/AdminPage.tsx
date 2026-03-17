@@ -376,6 +376,7 @@ export function AdminPage() {
       toast.success("Role updated successfully");
       await refetchUsers();
       queryClient.invalidateQueries({ queryKey: ["isAdmin"] });
+      queryClient.invalidateQueries({ queryKey: ["isCreatorOrAdmin"] });
     } catch {
       toast.error("Failed to update role");
     }
@@ -413,6 +414,7 @@ export function AdminPage() {
       setPrincipalId("");
       setSelectedRole("");
       await refetchUsers();
+      queryClient.invalidateQueries({ queryKey: ["isCreatorOrAdmin"] });
     } catch {
       toast.error("Failed to assign role. Check permissions.");
     } finally {

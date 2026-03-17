@@ -54,9 +54,25 @@ actor {
     };
   };
 
-  // Check if caller is admin or creator
+  // Check if caller is admin or creator (safe - no trap for unregistered users)
   public query ({ caller }) func isCallerCreatorOrAdmin() : async Bool {
-    isCreatorOrAdmin(caller);
+    if (caller.isAnonymous()) { return false };
+    let isAdm = switch (accessControlState.userRoles.get(caller)) {
+      case (?(#admin)) { true };
+      case (_) { false };
+    };
+    isAdm or isCreator(caller);
+  };
+
+  // Register caller as a regular user (safe to call even if already registered)
+  public shared ({ caller }) func registerCallerAsUser() : async () {
+    if (caller.isAnonymous()) { return };
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) {}; // already registered, do nothing
+      case (null) {
+        accessControlState.userRoles.add(caller, #user);
+      };
+    };
   };
 
   // User Profiles
@@ -69,15 +85,16 @@ actor {
   let userProfiles = Map.empty<Principal, UserProfile>();
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access profiles");
-    };
+    if (caller.isAnonymous()) { return null };
     userProfiles.get(caller);
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
+    if (caller.isAnonymous()) { Runtime.trap("Anonymous users cannot save profiles") };
+    // Auto-register as user if not yet registered
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) {};
+      case (null) { accessControlState.userRoles.add(caller, #user) };
     };
     userProfiles.add(caller, profile);
   };
@@ -105,10 +122,21 @@ actor {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can get all users");
     };
+    // Collect all known principals (from userRoles AND creatorPrincipals)
+    let allPrincipals = Map.empty<Principal, Bool>();
+    accessControlState.userRoles.entries().forEach(func((p, _)) { allPrincipals.add(p, true) });
+    creatorPrincipals.entries().forEach(func((p, _)) { allPrincipals.add(p, true) });
     let usersWithRoles = List.empty<UserWithRole>();
-    userProfiles.entries().forEach(
-      func((user, profile)) {
-        let role = AccessControl.getUserRole(accessControlState, user);
+    allPrincipals.entries().forEach(
+      func((user, _)) {
+        let profile = switch (userProfiles.get(user)) {
+          case (?p) { p };
+          case (null) { { displayName = ""; bio = ""; profilePicBlob = null } };
+        };
+        let role = switch (accessControlState.userRoles.get(user)) {
+          case (?r) { r };
+          case (null) { #guest };
+        };
         let userWithRole : UserWithRole = {
           principal = user;
           profile;
@@ -127,6 +155,7 @@ actor {
     };
     userProfiles.remove(user);
     creatorPrincipals.remove(user);
+    accessControlState.userRoles.remove(user);
   };
 
   // Videos

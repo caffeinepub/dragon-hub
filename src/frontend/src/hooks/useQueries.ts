@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalBlob } from "../backend";
 import type { UserProfile } from "../backend";
 import { useActor } from "./useActor";
+import { useInternetIdentity } from "./useInternetIdentity";
 
 export function useAllVideos() {
   const { actor, isFetching } = useActor();
@@ -126,11 +127,17 @@ export function useIsAdmin() {
 
 export function useIsCreatorOrAdmin() {
   const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  const principalKey = identity?.getPrincipal().toString() ?? "anon";
   return useQuery({
-    queryKey: ["isCreatorOrAdmin"],
+    queryKey: ["isCreatorOrAdmin", principalKey],
     queryFn: async () => {
-      if (!actor) return false;
-      return (actor as any).isCallerCreatorOrAdmin();
+      if (!actor || !identity) return false;
+      try {
+        return await (actor as any).isCallerCreatorOrAdmin();
+      } catch {
+        return false;
+      }
     },
     enabled: !!actor && !isFetching,
   });
