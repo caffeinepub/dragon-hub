@@ -17,8 +17,8 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 const navLinks = [
   { href: "/" as const, label: "Home" },
   { href: "/videos" as const, label: "Videos" },
-  { href: "/marketplace" as const, label: "Marketplace" },
-  { href: "/shops" as const, label: "Shops" },
+  { href: "/sellers" as const, label: "Sellers" },
+  { href: "/shops" as const, label: "Shop Feed" },
   { href: "/groups" as const, label: "Groups" },
   { href: "/forums" as const, label: "Forums" },
 ];
@@ -33,11 +33,8 @@ export function Navbar() {
     ? `${principal.slice(0, 5)}...${principal.slice(-3)}`
     : "";
 
-  // Auto-register user when they sign in so they appear in members list
   useEffect(() => {
     if (actor && identity && !isFetching) {
-      // registerCallerAsUser exists in the Motoko backend but is not yet in the
-      // generated backend.ts binding — use a runtime call via any cast.
       const a = actor as any;
       if (typeof a.registerCallerAsUser === "function") {
         a.registerCallerAsUser().catch(() => {});
@@ -66,7 +63,6 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Logo */}
         <Link
           to="/"
           className="flex items-center gap-2 font-display font-bold text-xl text-foreground"
@@ -76,7 +72,6 @@ export function Navbar() {
           Dragon Hub
         </Link>
 
-        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-1">
           {navLinks.map((link) => (
             <Link
@@ -87,7 +82,7 @@ export function Navbar() {
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
-              data-ocid={`nav.${link.label.toLowerCase()}.link`}
+              data-ocid={`nav.${link.label.toLowerCase().replace(" ", "_")}.link`}
             >
               {link.label}
             </Link>
@@ -112,7 +107,6 @@ export function Navbar() {
           )}
         </nav>
 
-        {/* Right side */}
         <div className="flex items-center gap-2">
           {isInitializing ? null : identity ? (
             <DropdownMenu>
@@ -186,7 +180,6 @@ export function Navbar() {
             </Button>
           )}
 
-          {/* Mobile hamburger */}
           <button
             type="button"
             className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground"
@@ -202,7 +195,6 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-background/95 px-4 py-3 space-y-1">
           {navLinks.map((link) => (
@@ -215,7 +207,7 @@ export function Navbar() {
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
-              data-ocid={`nav.mobile.${link.label.toLowerCase()}.link`}
+              data-ocid={`nav.mobile.${link.label.toLowerCase().replace(" ", "_")}.link`}
             >
               {link.label}
             </Link>

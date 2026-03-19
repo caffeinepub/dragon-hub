@@ -18,11 +18,16 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useAllGroups, useCreateGroup } from "../hooks/useQueries";
+import {
+  useAllGroups,
+  useCreateGroup,
+  useIsCreatorOrAdmin,
+} from "../hooks/useQueries";
 
 export function GroupsPage() {
   const { identity } = useInternetIdentity();
   const { data: groups, isLoading } = useAllGroups();
+  const { data: isCreatorOrAdmin } = useIsCreatorOrAdmin();
   const createGroup = useCreateGroup();
 
   const [open, setOpen] = useState(false);
@@ -56,7 +61,7 @@ export function GroupsPage() {
             Join communities of dragon enthusiasts
           </p>
         </div>
-        {identity && (
+        {identity && isCreatorOrAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button

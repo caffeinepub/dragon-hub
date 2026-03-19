@@ -17,6 +17,7 @@ import { HomePage } from "./pages/HomePage";
 import { ListingDetailPage } from "./pages/ListingDetailPage";
 import { MarketplacePage } from "./pages/MarketplacePage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { SellersPage } from "./pages/SellersPage";
 import { ShopDetailPage } from "./pages/ShopDetailPage";
 import { ShopsPage } from "./pages/ShopsPage";
 import { ThreadPage } from "./pages/ThreadPage";
@@ -66,6 +67,12 @@ const listingDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/marketplace/$id",
   component: ListingDetailPage,
+});
+
+const sellersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sellers",
+  component: SellersPage,
 });
 
 const shopsRoute = createRoute({
@@ -128,6 +135,7 @@ const routeTree = rootRoute.addChildren([
   videoDetailRoute,
   marketplaceRoute,
   listingDetailRoute,
+  sellersRoute,
   shopsRoute,
   shopDetailRoute,
   groupsRoute,

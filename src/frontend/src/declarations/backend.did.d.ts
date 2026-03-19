@@ -11,6 +11,7 @@ import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
 export type CategoryId = bigint;
+export type ChannelId = bigint;
 export interface Comment {
   'id' : CommentId,
   'text' : string,
@@ -19,6 +20,16 @@ export interface Comment {
   'videoId' : VideoId,
 }
 export type CommentId = bigint;
+export interface DownloadRequest {
+  'id' : bigint,
+  'status' : { 'pending' : null } |
+    { 'approved' : null } |
+    { 'rejected' : null },
+  'requester' : Principal,
+  'shopId' : ShopId,
+  'productId' : ShopProductId,
+  'timestamp' : bigint,
+}
 export type ExternalBlob = Uint8Array;
 export interface ForumCategory {
   'id' : CategoryId,
@@ -34,6 +45,29 @@ export interface ForumThread {
   'author' : Principal,
   'timestamp' : bigint,
 }
+export interface Group {
+  'id' : GroupId,
+  'owner' : Principal,
+  'name' : string,
+  'description' : string,
+  'iconBlob' : [] | [ExternalBlob],
+  'timestamp' : bigint,
+}
+export interface GroupChannel {
+  'id' : ChannelId,
+  'name' : string,
+  'description' : string,
+  'groupId' : GroupId,
+}
+export type GroupId = bigint;
+export interface GroupMessage {
+  'id' : GroupMessageId,
+  'channelId' : ChannelId,
+  'text' : string,
+  'author' : Principal,
+  'timestamp' : bigint,
+}
+export type GroupMessageId = bigint;
 export interface Listing {
   'id' : ListingId,
   'title' : string,
@@ -46,6 +80,55 @@ export interface Listing {
 }
 export type ListingId = bigint;
 export type ReplyId = bigint;
+export interface Shop {
+  'id' : ShopId,
+  'categories' : Array<string>,
+  'contactInfo' : string,
+  'bannerBlob' : [] | [ExternalBlob],
+  'owner' : Principal,
+  'name' : string,
+  'description' : string,
+  'isNsfw' : boolean,
+  'logoBlob' : [] | [ExternalBlob],
+  'timestamp' : bigint,
+  'rules' : string,
+}
+export interface ShopCategory {
+  'id' : bigint,
+  'name' : string,
+  'isActive' : boolean,
+}
+export type ShopId = bigint;
+export interface ShopProduct {
+  'id' : ShopProductId,
+  'title' : string,
+  'shopId' : ShopId,
+  'description' : string,
+  'stock' : bigint,
+  'digitalFileBlob' : [] | [ExternalBlob],
+  'currency' : string,
+  'timestamp' : bigint,
+  'paymentLink' : string,
+  'category' : string,
+  'imageBlobs' : Array<ExternalBlob>,
+  'price' : bigint,
+  'isDigital' : boolean,
+}
+export type ShopProductId = bigint;
+export interface ShopQuestion {
+  'id' : bigint,
+  'asker' : Principal,
+  'shopId' : ShopId,
+  'question' : string,
+  'answered' : boolean,
+  'answer' : string,
+  'timestamp' : bigint,
+}
+export interface ShoppingCartView {
+  'productIds' : Array<bigint>,
+  'owner' : Principal,
+  'timestamp' : bigint,
+}
 export type ThreadId = bigint;
 export interface ThreadReply {
   'id' : ReplyId,
@@ -68,6 +151,7 @@ export type UserRole = { 'admin' : null } |
   { 'guest' : null };
 export interface UserWithRole {
   'principal' : Principal,
+  'isCreator' : boolean,
   'role' : UserRole,
   'profile' : UserProfile,
 }
@@ -110,37 +194,148 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addCartProduct' : ActorMethod<[bigint], undefined>,
   'addComment' : ActorMethod<[VideoId, string], CommentId>,
+  'addShopProduct' : ActorMethod<
+    [
+      ShopId,
+      string,
+      string,
+      bigint,
+      string,
+      Array<ExternalBlob>,
+      string,
+      bigint,
+      boolean,
+      string,
+      [] | [ExternalBlob],
+    ],
+    ShopProductId
+  >,
+  'answerShopQuestion' : ActorMethod<[bigint, string], undefined>,
+  'approveDownload' : ActorMethod<[bigint], undefined>,
+  'askShopQuestion' : ActorMethod<[ShopId, string], bigint>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'claimFirstAdmin' : ActorMethod<[], boolean>,
+  'clearCart' : ActorMethod<[], undefined>,
   'createCategory' : ActorMethod<[string, string], CategoryId>,
+  'createGroup' : ActorMethod<[string, string, [] | [ExternalBlob]], GroupId>,
+  'createGroupChannel' : ActorMethod<[GroupId, string, string], ChannelId>,
   'createListing' : ActorMethod<
     [string, string, bigint, ExternalBlob],
     ListingId
   >,
+  'createShop' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      string,
+      boolean,
+      Array<string>,
+      [] | [ExternalBlob],
+    ],
+    ShopId
+  >,
+  'createShopCategory' : ActorMethod<[string], bigint>,
   'createThread' : ActorMethod<[CategoryId, string, string], ThreadId>,
   'createVideo' : ActorMethod<
     [string, string, ExternalBlob, ExternalBlob],
     VideoId
   >,
+  'deleteShop' : ActorMethod<[ShopId], undefined>,
+  'deleteShopCategory' : ActorMethod<[bigint], undefined>,
+  'deleteShopProduct' : ActorMethod<[ShopProductId], undefined>,
   'getAllActiveListings' : ActorMethod<[], Array<Listing>>,
   'getAllCategories' : ActorMethod<[], Array<ForumCategory>>,
+  'getAllGroups' : ActorMethod<[], Array<Group>>,
+  'getAllShopCategories' : ActorMethod<[], Array<ShopCategory>>,
+  'getAllShops' : ActorMethod<[], Array<Shop>>,
   'getAllUsers' : ActorMethod<[], Array<UserWithRole>>,
   'getAllVideos' : ActorMethod<[], Array<Video>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCart' : ActorMethod<[], [] | [ShoppingCartView]>,
   'getCommentsForVideo' : ActorMethod<[VideoId], Array<Comment>>,
+  'getDatabaseCounts' : ActorMethod<
+    [],
+    {
+      'categories' : bigint,
+      'groups' : bigint,
+      'shopProducts' : bigint,
+      'listings' : bigint,
+      'downloadRequests' : bigint,
+      'threads' : bigint,
+      'shopQuestions' : bigint,
+      'shops' : bigint,
+      'videos' : bigint,
+    }
+  >,
+  'getDownloadRequests' : ActorMethod<[ShopId], Array<DownloadRequest>>,
+  'getGroup' : ActorMethod<[GroupId], [] | [Group]>,
+  'getGroupChannels' : ActorMethod<[GroupId], Array<GroupChannel>>,
+  'getGroupMembers' : ActorMethod<[GroupId], Array<Principal>>,
+  'getGroupMessages' : ActorMethod<[ChannelId], Array<GroupMessage>>,
   'getListing' : ActorMethod<[ListingId], [] | [Listing]>,
+  'getMyDownloadRequests' : ActorMethod<
+    [],
+    Array<[DownloadRequest, [] | [ShopProduct]]>
+  >,
+  'getPublicUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getShop' : ActorMethod<[ShopId], [] | [Shop]>,
+  'getShopProducts' : ActorMethod<[ShopId], Array<ShopProduct>>,
+  'getShopQuestions' : ActorMethod<[ShopId], Array<ShopQuestion>>,
+  'getShopsByOwner' : ActorMethod<[Principal], Array<Shop>>,
   'getThreadWithReplies' : ActorMethod<[ThreadId], [] | [ThreadWithReplies]>,
   'getThreadsInCategory' : ActorMethod<[CategoryId], Array<ForumThread>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getVideo' : ActorMethod<[VideoId], [] | [Video]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'claimFirstAdmin' : ActorMethod<[], boolean>,
+  'isCallerCreatorOrAdmin' : ActorMethod<[], boolean>,
+  'joinGroup' : ActorMethod<[GroupId], undefined>,
+  'leaveGroup' : ActorMethod<[GroupId], undefined>,
   'likeVideo' : ActorMethod<[VideoId], undefined>,
   'markAsSold' : ActorMethod<[ListingId], undefined>,
+  'postGroupMessage' : ActorMethod<[ChannelId, string], GroupMessageId>,
+  'registerCallerAsUser' : ActorMethod<[], undefined>,
+  'rejectDownload' : ActorMethod<[bigint], undefined>,
+  'removeCartProduct' : ActorMethod<[bigint], undefined>,
   'removeUser' : ActorMethod<[Principal], undefined>,
   'replyToThread' : ActorMethod<[ThreadId, string], ReplyId>,
+  'requestDownload' : ActorMethod<[ShopProductId], bigint>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setCreatorStatus' : ActorMethod<[Principal, boolean], undefined>,
+  'updateShop' : ActorMethod<
+    [
+      ShopId,
+      string,
+      string,
+      string,
+      string,
+      [] | [ExternalBlob],
+      [] | [ExternalBlob],
+      boolean,
+      Array<string>,
+    ],
+    undefined
+  >,
+  'updateShopCategory' : ActorMethod<[bigint, string], undefined>,
+  'updateShopProduct' : ActorMethod<
+    [
+      ShopProductId,
+      string,
+      string,
+      bigint,
+      string,
+      Array<ExternalBlob>,
+      string,
+      bigint,
+      boolean,
+      string,
+      [] | [ExternalBlob],
+    ],
+    undefined
+  >,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

@@ -22,7 +22,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAllCategories,
   useCreateCategory,
-  useIsAdmin,
+  useIsCreatorOrAdmin,
 } from "../hooks/useQueries";
 
 const SKELETON_IDS = ["a", "b", "c", "d", "e", "f"];
@@ -30,7 +30,7 @@ const SKELETON_IDS = ["a", "b", "c", "d", "e", "f"];
 export function ForumsPage() {
   const { identity } = useInternetIdentity();
   const { data: categories, isLoading } = useAllCategories();
-  const { data: isAdmin } = useIsAdmin();
+  const { data: isCreatorOrAdmin } = useIsCreatorOrAdmin();
   const createCategory = useCreateCategory();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -61,7 +61,7 @@ export function ForumsPage() {
             Explore topics and join the dragon community discussions
           </p>
         </div>
-        {identity && isAdmin && (
+        {identity && isCreatorOrAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button
@@ -142,7 +142,7 @@ export function ForumsPage() {
             No categories yet
           </h3>
           <p className="text-muted-foreground">
-            An admin needs to create forum categories first.
+            An admin or creator needs to create forum categories first.
           </p>
         </div>
       ) : (

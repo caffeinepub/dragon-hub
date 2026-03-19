@@ -32,10 +32,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CheckCircle2,
+  FolderOpen,
   KeyRound,
   Loader2,
+  Pencil,
   Shield,
   Sparkles,
+  Tag,
   Trash2,
   UserCog,
   Users,
@@ -45,6 +48,12 @@ import { toast } from "sonner";
 import { UserRole, type UserWithRole } from "../backend";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import {
+  useAllShopCategories,
+  useCreateShopCategory,
+  useDeleteShopCategory,
+  useUpdateShopCategory,
+} from "../hooks/useQueries";
 
 /** Derive a display role string from the UserWithRole fields */
 function getDisplayRole(user: UserWithRole): string {
@@ -327,6 +336,193 @@ async function applyRoleString(
       ]);
       break;
   }
+}
+
+function ShopCategoriesCard() {
+  const { data: categories, isLoading } = useAllShopCategories();
+  const createCategory = useCreateShopCategory();
+  const updateCategory = useUpdateShopCategory();
+  const deleteCategory = useDeleteShopCategory();
+
+  const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState<bigint | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    try {
+      await createCategory.mutateAsync(newName.trim());
+      setNewName("");
+      toast.success("Category added");
+    } catch {
+      toast.error("Failed to add category");
+    }
+  };
+
+  const handleUpdate = async (id: bigint) => {
+    if (!editName.trim()) return;
+    try {
+      await updateCategory.mutateAsync({ id, name: editName.trim() });
+      setEditingId(null);
+      toast.success("Category updated");
+    } catch {
+      toast.error("Failed to update category");
+    }
+  };
+
+  const handleDelete = async (id: bigint) => {
+    if (!confirm("Delete this category?")) return;
+    try {
+      await deleteCategory.mutateAsync(id);
+      toast.success("Category deleted");
+    } catch {
+      toast.error("Failed to delete category");
+    }
+  };
+
+  return (
+    <Card className="border-border bg-card shadow-lg">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+            <FolderOpen className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="font-display text-lg text-foreground">
+              Shop Categories
+            </CardTitle>
+            <CardDescription className="font-body text-xs">
+              Preset categories available to all shops
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <Separator />
+      <CardContent className="pt-5 space-y-4">
+        {/* Add new */}
+        <div className="flex gap-2">
+          <Input
+            placeholder="New category name…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreate();
+            }}
+            className="flex-1 bg-background border-border font-body text-sm"
+            data-ocid="admin.shop_categories.input"
+          />
+          <Button
+            onClick={handleCreate}
+            disabled={createCategory.isPending || !newName.trim()}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 font-body"
+            data-ocid="admin.shop_categories.button"
+          >
+            {createCategory.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Add"
+            )}
+          </Button>
+        </div>
+
+        {/* List */}
+        {isLoading ? (
+          <div
+            className="space-y-2"
+            data-ocid="admin.shop_categories.loading_state"
+          >
+            {[1, 2, 3].map((k) => (
+              <Skeleton key={k} className="h-10 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : !categories?.length ? (
+          <div
+            className="text-center py-8 text-muted-foreground"
+            data-ocid="admin.shop_categories.empty_state"
+          >
+            <Tag className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="font-body text-sm">
+              No categories yet. Add the first one above.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2" data-ocid="admin.shop_categories.list">
+            {categories.map((cat, i) => (
+              <div
+                key={cat.id.toString()}
+                className="flex items-center gap-2 p-2.5 rounded-lg border border-border/50 bg-background/40"
+                data-ocid={`admin.shop_categories.item.${i + 1}`}
+              >
+                <Tag className="h-4 w-4 text-accent shrink-0" />
+                {editingId === cat.id ? (
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleUpdate(cat.id);
+                    }}
+                    className="flex-1 h-7 text-sm bg-background border-border"
+                    autoFocus
+                    data-ocid={"admin.shop_categories.edit.input"}
+                  />
+                ) : (
+                  <span className="flex-1 font-body text-sm text-foreground">
+                    {cat.name}
+                  </span>
+                )}
+                {editingId === cat.id ? (
+                  <>
+                    <Button
+                      size="sm"
+                      className="h-7 px-2 text-xs bg-primary text-primary-foreground"
+                      onClick={() => handleUpdate(cat.id)}
+                      data-ocid={`admin.shop_categories.save_button.${i + 1}`}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setEditingId(null)}
+                      data-ocid={`admin.shop_categories.cancel_button.${i + 1}`}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setEditingId(cat.id);
+                        setEditName(cat.name);
+                      }}
+                      data-ocid={`admin.shop_categories.edit_button.${i + 1}`}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDelete(cat.id)}
+                      disabled={deleteCategory.isPending}
+                      data-ocid={`admin.shop_categories.delete_button.${i + 1}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function AdminPage() {
@@ -690,6 +886,9 @@ export function AdminPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* ── SHOP CATEGORIES ── */}
+        <ShopCategoriesCard />
 
         {/* Designated admins note */}
         <Card className="border-primary/20 bg-primary/5">

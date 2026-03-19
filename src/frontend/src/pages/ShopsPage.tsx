@@ -1,167 +1,251 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@tanstack/react-router";
-import { Loader2, Plus, Store } from "lucide-react";
-import { motion } from "motion/react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
-  useAllShops,
-  useCreateShop,
-  useIsCreatorOrAdmin,
-  useShopByOwner,
-} from "../hooks/useQueries";
+  AlertTriangle,
+  EyeOff,
+  Loader2,
+  Search,
+  Store,
+  Tag,
+  Trash2,
+} from "lucide-react";
+import { motion } from "motion/react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import type { Shop } from "../backend";
+import { useAllShops, useDeleteShop, useIsAdmin } from "../hooks/useQueries";
+
+function ShopCard({
+  shop,
+  index,
+  isAdmin,
+  onDelete,
+  deleting,
+}: {
+  shop: Shop;
+  index: number;
+  isAdmin: boolean;
+  onDelete: (id: bigint, name: string) => void;
+  deleting: boolean;
+}) {
+  return (
+    <motion.div
+      variants={{
+        hidden: { opacity: 0, y: 16 },
+        visible: { opacity: 1, y: 0 },
+      }}
+      data-ocid={`shops.item.${index + 1}`}
+      className="relative"
+    >
+      {isAdmin && (
+        <button
+          type="button"
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-destructive/80 hover:bg-destructive text-white transition-colors"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(shop.id, shop.name);
+          }}
+          disabled={deleting}
+          aria-label="Delete shop"
+          data-ocid={`shops.delete_button.${index + 1}`}
+        >
+          {deleting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="h-3.5 w-3.5" />
+          )}
+        </button>
+      )}
+      {shop.isNsfw && (
+        <div className="absolute top-2 left-2 z-10">
+          <Badge className="bg-destructive/90 text-white border-0 text-xs font-bold">
+            NSFW 18+
+          </Badge>
+        </div>
+      )}
+      <Link to="/shops/$id" params={{ id: shop.id.toString() }}>
+        <Card className="bg-card border-border overflow-hidden card-hover group cursor-pointer h-full">
+          <div className="h-36 overflow-hidden relative">
+            {shop.bannerBlob ? (
+              <img
+                src={shop.bannerBlob.getDirectURL()}
+                alt={shop.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center">
+                <Store className="h-10 w-10 text-accent/60" />
+              </div>
+            )}
+            {shop.logoBlob && (
+              <div className="absolute bottom-2 left-3">
+                <img
+                  src={shop.logoBlob.getDirectURL()}
+                  alt={`${shop.name} logo`}
+                  className="h-10 w-10 rounded-full object-cover border-2 border-background shadow"
+                />
+              </div>
+            )}
+          </div>
+          <CardContent className="p-4">
+            <h3 className="font-display font-semibold text-lg text-foreground leading-tight">
+              {shop.name}
+            </h3>
+            {shop.description && (
+              <p className="text-muted-foreground text-sm mt-1 line-clamp-2">
+                {shop.description}
+              </p>
+            )}
+            {shop.categories.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {shop.categories.slice(0, 3).map((cat) => (
+                  <Badge key={cat} variant="secondary" className="text-xs">
+                    <Tag className="h-2.5 w-2.5 mr-0.5" />
+                    {cat}
+                  </Badge>
+                ))}
+                {shop.categories.length > 3 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{shop.categories.length - 3}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </Link>
+    </motion.div>
+  );
+}
+
+const NSFW_CONSENT_KEY = "dragonhub_nsfw_consent";
 
 export function ShopsPage() {
-  const { identity } = useInternetIdentity();
   const { data: shops, isLoading } = useAllShops();
-  const principal = identity?.getPrincipal();
-  const { data: myShopRaw } = useShopByOwner(principal);
-  const { data: canCreateShop } = useIsCreatorOrAdmin();
-  const createShop = useCreateShop();
+  const { data: isAdmin } = useIsAdmin();
+  const deleteShop = useDeleteShop();
 
-  // Candid optionals come back as [] | [Shop] — unwrap properly
-  const myShop = Array.isArray(myShopRaw)
-    ? myShopRaw.length > 0
-      ? myShopRaw[0]
-      : null
-    : (myShopRaw ?? null);
+  const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<bigint | null>(null);
+  const [nsfwConsent, setNsfwConsent] = useState(
+    () => sessionStorage.getItem(NSFW_CONSENT_KEY) === "true",
+  );
+  const [showAgeGate, setShowAgeGate] = useState(false);
+  const [nsfwExpanded, setNsfwExpanded] = useState(false);
 
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const { safeShops, nsfwShops } = useMemo(() => {
+    const q = search.toLowerCase();
+    const filtered = (shops ?? []).filter(
+      (s) =>
+        !q ||
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.categories.some((c) => c.toLowerCase().includes(q)),
+    );
+    return {
+      safeShops: filtered.filter((s) => !s.isNsfw),
+      nsfwShops: filtered.filter((s) => s.isNsfw),
+    };
+  }, [shops, search]);
 
-  const handleCreate = async () => {
-    if (!name.trim()) {
-      toast.error("Shop name is required");
-      return;
-    }
+  const handleDeleteShop = async (shopId: bigint, shopName: string) => {
+    if (!confirm(`Delete "${shopName}"? This cannot be undone.`)) return;
+    setDeletingId(shopId);
     try {
-      await createShop.mutateAsync({ name, description, bannerFile });
-      toast.success("Shop created!");
-      setOpen(false);
-      setName("");
-      setDescription("");
-      setBannerFile(null);
+      await deleteShop.mutateAsync(shopId);
+      toast.success("Shop deleted");
     } catch {
-      toast.error("Failed to create shop");
+      toast.error("Failed to delete shop");
+    } finally {
+      setDeletingId(null);
     }
   };
 
+  const handleNsfwProceed = () => {
+    sessionStorage.setItem(NSFW_CONSENT_KEY, "true");
+    setNsfwConsent(true);
+    setNsfwExpanded(true);
+    setShowAgeGate(false);
+  };
+
+  const handleViewNsfw = () => {
+    if (nsfwConsent) {
+      setNsfwExpanded((v) => !v);
+    } else {
+      setShowAgeGate(true);
+    }
+  };
+
+  const ShopsGrid = ({
+    items,
+    startIndex,
+  }: { items: Shop[]; startIndex: number }) => (
+    <motion.div
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+      initial="hidden"
+      animate="visible"
+      variants={{
+        visible: { transition: { staggerChildren: 0.06 } },
+        hidden: {},
+      }}
+    >
+      {items.map((shop, i) => (
+        <ShopCard
+          key={shop.id.toString()}
+          shop={shop}
+          index={startIndex + i}
+          isAdmin={!!isAdmin}
+          onDelete={handleDeleteShop}
+          deleting={deletingId === shop.id}
+        />
+      ))}
+    </motion.div>
+  );
+
   return (
     <main className="container mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display text-4xl font-bold">Shops</h1>
           <p className="text-muted-foreground mt-1">
-            Discover unique dragon crafted stores
+            Discover unique dragon-crafted stores
           </p>
         </div>
-        {identity &&
-          canCreateShop &&
-          (myShop ? (
-            <Link to="/shops/$id" params={{ id: myShop.id.toString() }}>
-              <Button
-                className="bg-accent text-accent-foreground hover:bg-accent/90"
-                data-ocid="shops.my_shop.button"
-              >
-                <Store className="h-4 w-4 mr-2" />
-                My Shop
-              </Button>
-            </Link>
-          ) : (
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  className="bg-accent text-accent-foreground hover:bg-accent/90 gold-glow"
-                  data-ocid="shops.create.open_modal_button"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Shop
-                </Button>
-              </DialogTrigger>
-              <DialogContent
-                className="sm:max-w-md"
-                data-ocid="shops.create.dialog"
-              >
-                <DialogHeader>
-                  <DialogTitle className="font-display text-xl">
-                    Create Your Shop
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-2">
-                  <div>
-                    <Label htmlFor="shop-name">Shop Name</Label>
-                    <Input
-                      id="shop-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Your shop name"
-                      data-ocid="shops.create.input"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="shop-desc">Description</Label>
-                    <Textarea
-                      id="shop-desc"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Describe your shop"
-                      data-ocid="shops.create.textarea"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="shop-banner">Banner Image (optional)</Label>
-                    <Input
-                      id="shop-banner"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) =>
-                        setBannerFile(e.target.files?.[0] ?? null)
-                      }
-                      data-ocid="shops.create.upload_button"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setOpen(false)}
-                    data-ocid="shops.create.cancel_button"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleCreate}
-                    disabled={createShop.isPending}
-                    className="bg-accent text-accent-foreground"
-                    data-ocid="shops.create.submit_button"
-                  >
-                    {createShop.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : null}
-                    {createShop.isPending ? "Creating..." : "Create"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          ))}
+        <Link to="/sellers" data-ocid="shops.sellers.link">
+          <Button variant="outline" size="sm">
+            <Store className="h-4 w-4 mr-2" />
+            Manage My Shop
+          </Button>
+        </Link>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-8">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search shops by name, description or category..."
+          className="pl-10"
+          data-ocid="shops.search.input"
+        />
+      </div>
+
+      {/* Loading */}
       {isLoading ? (
         <div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -177,66 +261,123 @@ export function ShopsPage() {
             </Card>
           ))}
         </div>
-      ) : shops?.length === 0 ? (
+      ) : safeShops.length === 0 && nsfwShops.length === 0 ? (
         <div className="text-center py-20" data-ocid="shops.empty_state">
           <Store className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
           <h3 className="font-display text-xl font-semibold mb-2">
-            No shops yet
+            {search ? "No shops found" : "No shops yet"}
           </h3>
           <p className="text-muted-foreground">
-            Be the first to open a shop on Dragon Hub!
+            {search
+              ? "Try a different search term."
+              : "Be the first to open a shop on Dragon Hub!"}
           </p>
         </div>
       ) : (
-        <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          initial="hidden"
-          animate="visible"
-          variants={{
-            visible: { transition: { staggerChildren: 0.06 } },
-            hidden: {},
-          }}
-        >
-          {shops?.map((shop, i) => (
-            <motion.div
-              key={shop.id.toString()}
-              variants={{
-                hidden: { opacity: 0, y: 16 },
-                visible: { opacity: 1, y: 0 },
-              }}
-              data-ocid={`shops.item.${i + 1}`}
-            >
-              <Link to="/shops/$id" params={{ id: shop.id.toString() }}>
-                <Card className="bg-card border-border overflow-hidden card-hover group cursor-pointer">
-                  <div className="h-36 overflow-hidden relative">
-                    {shop.bannerBlob ? (
-                      <img
-                        src={shop.bannerBlob.getDirectURL()}
-                        alt={shop.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center">
-                        <Store className="h-10 w-10 text-accent/60" />
-                      </div>
-                    )}
+        <>
+          {/* Safe shops */}
+          {safeShops.length > 0 && (
+            <section className="mb-12">
+              {nsfwShops.length > 0 && (
+                <h2 className="font-display text-xl font-semibold mb-4 flex items-center gap-2">
+                  <Store className="h-5 w-5 text-accent" /> All Ages
+                </h2>
+              )}
+              <ShopsGrid items={safeShops} startIndex={0} />
+            </section>
+          )}
+
+          {/* NSFW section */}
+          {nsfwShops.length > 0 && (
+            <section data-ocid="shops.nsfw.panel">
+              <div className="flex items-center gap-3 mb-4 p-4 rounded-xl bg-destructive/5 border border-destructive/20">
+                <EyeOff className="h-5 w-5 text-destructive" />
+                <div className="flex-1">
+                  <h2 className="font-display text-xl font-semibold text-destructive">
+                    NSFW Shops
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {nsfwShops.length} shop{nsfwShops.length !== 1 ? "s" : ""} —
+                    Adult content, 18+ only
+                  </p>
+                </div>
+                <Button
+                  variant={
+                    nsfwExpanded && nsfwConsent ? "destructive" : "outline"
+                  }
+                  size="sm"
+                  onClick={handleViewNsfw}
+                  className={
+                    nsfwExpanded && nsfwConsent
+                      ? ""
+                      : "border-destructive/40 text-destructive hover:bg-destructive/10"
+                  }
+                  data-ocid="shops.nsfw.toggle"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  {nsfwExpanded && nsfwConsent
+                    ? "Hide"
+                    : "View NSFW Content (18+)"}
+                </Button>
+              </div>
+              {nsfwExpanded && nsfwConsent && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="mb-3 flex items-center gap-2 p-2 rounded-lg bg-destructive/10">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <span className="text-sm text-destructive font-medium">
+                      Adult content — viewers confirmed 18+
+                    </span>
                   </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-display font-semibold text-lg text-foreground">
-                      {shop.name}
-                    </h3>
-                    {shop.description && (
-                      <p className="text-muted-foreground text-sm mt-1 line-clamp-2">
-                        {shop.description}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.div>
+                  <ShopsGrid items={nsfwShops} startIndex={safeShops.length} />
+                </motion.div>
+              )}
+            </section>
+          )}
+        </>
       )}
+
+      {/* Age gate dialog */}
+      <Dialog open={showAgeGate} onOpenChange={setShowAgeGate}>
+        <DialogContent
+          className="sm:max-w-md"
+          data-ocid="shops.age_gate.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Age Verification Required
+            </DialogTitle>
+            <DialogDescription>
+              This section contains adult content intended for mature audiences.
+              You must be <strong>18 years or older</strong> to proceed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 text-sm text-muted-foreground">
+            By clicking &quot;I am 18+ — Proceed&quot;, you confirm that you are
+            at least 18 years old and consent to viewing adult content.
+          </div>
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowAgeGate(false)}
+              className="flex-1"
+              data-ocid="shops.age_gate.cancel_button"
+            >
+              Go Back
+            </Button>
+            <Button
+              onClick={handleNsfwProceed}
+              className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-ocid="shops.age_gate.confirm_button"
+            >
+              I am 18+ — Proceed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

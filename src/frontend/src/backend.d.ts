@@ -24,11 +24,83 @@ export interface Video {
     thumbnailBlob: ExternalBlob;
     timestamp: bigint;
 }
-export interface UserProfile {
-    bio: string;
-    displayName: string;
-    profilePicBlob?: ExternalBlob;
+export interface GroupMessage {
+    id: GroupMessageId;
+    channelId: ChannelId;
+    text: string;
+    author: Principal;
+    timestamp: bigint;
 }
+export type ReplyId = bigint;
+export interface ForumCategory {
+    id: CategoryId;
+    name: string;
+    description: string;
+    isActive: boolean;
+}
+export interface Group {
+    id: GroupId;
+    owner: Principal;
+    name: string;
+    description: string;
+    iconBlob?: ExternalBlob;
+    timestamp: bigint;
+}
+export type GroupId = bigint;
+export interface ThreadReply {
+    id: ReplyId;
+    text: string;
+    author: Principal;
+    timestamp: bigint;
+    threadId: ThreadId;
+}
+export type GroupMessageId = bigint;
+export type ShopProductId = bigint;
+export interface ShoppingCartView {
+    productIds: Array<bigint>;
+    owner: Principal;
+    timestamp: bigint;
+}
+export type ListingId = bigint;
+export interface ShopQuestion {
+    id: bigint;
+    asker: Principal;
+    shopId: ShopId;
+    question: string;
+    answered: boolean;
+    answer: string;
+    timestamp: bigint;
+}
+export interface GroupChannel {
+    id: ChannelId;
+    name: string;
+    description: string;
+    groupId: GroupId;
+}
+export type VideoId = bigint;
+export interface ShopCategory {
+    id: bigint;
+    name: string;
+    isActive: boolean;
+}
+export interface Shop {
+    id: ShopId;
+    categories: Array<string>;
+    contactInfo: string;
+    bannerBlob?: ExternalBlob;
+    owner: Principal;
+    name: string;
+    description: string;
+    isNsfw: boolean;
+    logoBlob?: ExternalBlob;
+    timestamp: bigint;
+    rules: string;
+}
+export interface ThreadWithReplies {
+    thread: ForumThread;
+    replies: Array<ThreadReply>;
+}
+export type ShopId = bigint;
 export type CommentId = bigint;
 export interface Comment {
     id: CommentId;
@@ -39,9 +111,9 @@ export interface Comment {
 }
 export interface UserWithRole {
     principal: Principal;
+    isCreator: boolean;
     role: UserRole;
     profile: UserProfile;
-    isCreator: boolean;
 }
 export interface Listing {
     id: ListingId;
@@ -53,21 +125,15 @@ export interface Listing {
     image: ExternalBlob;
     price: bigint;
 }
-export type ReplyId = bigint;
-export interface ForumCategory {
-    id: CategoryId;
-    name: string;
-    description: string;
-    isActive: boolean;
-}
-export interface ThreadReply {
-    id: ReplyId;
-    text: string;
-    author: Principal;
+export type ChannelId = bigint;
+export interface DownloadRequest {
+    id: bigint;
+    status: Variant_pending_approved_rejected;
+    requester: Principal;
+    shopId: ShopId;
+    productId: ShopProductId;
     timestamp: bigint;
-    threadId: ThreadId;
 }
-export type ThreadId = bigint;
 export interface ForumThread {
     id: ThreadId;
     categoryId: CategoryId;
@@ -76,110 +142,113 @@ export interface ForumThread {
     author: Principal;
     timestamp: bigint;
 }
-export type ListingId = bigint;
-export type VideoId = bigint;
+export type ThreadId = bigint;
+export interface ShopProduct {
+    id: ShopProductId;
+    title: string;
+    shopId: ShopId;
+    description: string;
+    stock: bigint;
+    digitalFileBlob?: ExternalBlob;
+    currency: string;
+    timestamp: bigint;
+    paymentLink: string;
+    category: string;
+    imageBlobs: Array<ExternalBlob>;
+    price: bigint;
+    isDigital: boolean;
+}
 export type CategoryId = bigint;
-export interface ThreadWithReplies {
-    thread: ForumThread;
-    replies: Array<ThreadReply>;
+export interface UserProfile {
+    bio: string;
+    displayName: string;
+    profilePicBlob?: ExternalBlob;
 }
 export enum UserRole {
     admin = "admin",
     user = "user",
     guest = "guest"
 }
-// Shops
-export type ShopId = bigint;
-export interface Shop {
-    id: ShopId;
-    name: string;
-    description: string;
-    bannerBlob?: ExternalBlob;
-    owner: Principal;
-    timestamp: bigint;
-}
-export type ShopProductId = bigint;
-export interface ShopProduct {
-    id: ShopProductId;
-    shopId: ShopId;
-    title: string;
-    description: string;
-    price: bigint;
-    imageBlob?: ExternalBlob;
-    timestamp: bigint;
-}
-// Groups
-export type GroupId = bigint;
-export interface Group {
-    id: GroupId;
-    name: string;
-    description: string;
-    iconBlob?: ExternalBlob;
-    owner: Principal;
-    timestamp: bigint;
-}
-export type ChannelId = bigint;
-export interface GroupChannel {
-    id: ChannelId;
-    groupId: GroupId;
-    name: string;
-    description: string;
-}
-export type GroupMessageId = bigint;
-export interface GroupMessage {
-    id: GroupMessageId;
-    channelId: ChannelId;
-    author: Principal;
-    text: string;
-    timestamp: bigint;
+export enum Variant_pending_approved_rejected {
+    pending = "pending",
+    approved = "approved",
+    rejected = "rejected"
 }
 export interface backendInterface {
+    addCartProduct(productId: bigint): Promise<void>;
     addComment(videoId: VideoId, text: string): Promise<CommentId>;
+    addShopProduct(shopId: ShopId, title: string, description: string, price: bigint, currency: string, imageBlobs: Array<ExternalBlob>, paymentLink: string, stock: bigint, isDigital: boolean, category: string, digitalFileBlob: ExternalBlob | null): Promise<ShopProductId>;
+    answerShopQuestion(questionId: bigint, answer: string): Promise<void>;
+    approveDownload(requestId: bigint): Promise<void>;
+    askShopQuestion(shopId: ShopId, question: string): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     claimFirstAdmin(): Promise<boolean>;
+    clearCart(): Promise<void>;
     createCategory(name: string, description: string): Promise<CategoryId>;
+    createGroup(name: string, description: string, iconBlob: ExternalBlob | null): Promise<GroupId>;
+    createGroupChannel(groupId: GroupId, name: string, description: string): Promise<ChannelId>;
     createListing(title: string, description: string, price: bigint, image: ExternalBlob): Promise<ListingId>;
+    createShop(name: string, description: string, rules: string, contactInfo: string, isNsfw: boolean, _shopCategories: Array<string>, bannerBlob: ExternalBlob | null): Promise<ShopId>;
+    createShopCategory(name: string): Promise<bigint>;
     createThread(categoryId: CategoryId, title: string, body: string): Promise<ThreadId>;
     createVideo(title: string, description: string, videoBlob: ExternalBlob, thumbnailBlob: ExternalBlob): Promise<VideoId>;
+    deleteShop(shopId: ShopId): Promise<void>;
+    deleteShopCategory(id: bigint): Promise<void>;
+    deleteShopProduct(productId: ShopProductId): Promise<void>;
     getAllActiveListings(): Promise<Array<Listing>>;
     getAllCategories(): Promise<Array<ForumCategory>>;
+    getAllGroups(): Promise<Array<Group>>;
+    getAllShopCategories(): Promise<Array<ShopCategory>>;
+    getAllShops(): Promise<Array<Shop>>;
     getAllUsers(): Promise<Array<UserWithRole>>;
     getAllVideos(): Promise<Array<Video>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getCart(): Promise<ShoppingCartView | null>;
     getCommentsForVideo(videoId: VideoId): Promise<Array<Comment>>;
+    getDatabaseCounts(): Promise<{
+        categories: bigint;
+        groups: bigint;
+        shopProducts: bigint;
+        listings: bigint;
+        downloadRequests: bigint;
+        threads: bigint;
+        shopQuestions: bigint;
+        shops: bigint;
+        videos: bigint;
+    }>;
+    getDownloadRequests(shopId: ShopId): Promise<Array<DownloadRequest>>;
+    getGroup(id: GroupId): Promise<Group | null>;
+    getGroupChannels(groupId: GroupId): Promise<Array<GroupChannel>>;
+    getGroupMembers(groupId: GroupId): Promise<Array<Principal>>;
+    getGroupMessages(channelId: ChannelId): Promise<Array<GroupMessage>>;
     getListing(id: ListingId): Promise<Listing | null>;
+    getMyDownloadRequests(): Promise<Array<[DownloadRequest, ShopProduct | null]>>;
+    getPublicUserProfile(user: Principal): Promise<UserProfile | null>;
+    getShop(id: ShopId): Promise<Shop | null>;
+    getShopProducts(shopId: ShopId): Promise<Array<ShopProduct>>;
+    getShopQuestions(shopId: ShopId): Promise<Array<ShopQuestion>>;
+    getShopsByOwner(owner: Principal): Promise<Array<Shop>>;
     getThreadWithReplies(threadId: ThreadId): Promise<ThreadWithReplies | null>;
     getThreadsInCategory(categoryId: CategoryId): Promise<Array<ForumThread>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
-    getPublicUserProfile(user: Principal): Promise<UserProfile | null>;
     getVideo(id: VideoId): Promise<Video | null>;
     isCallerAdmin(): Promise<boolean>;
     isCallerCreatorOrAdmin(): Promise<boolean>;
-    likeVideo(id: VideoId): Promise<void>;
-    markAsSold(id: ListingId): Promise<void>;
-    registerCallerAsUser(): Promise<void>;
-    removeUser(user: Principal): Promise<void>;
-    replyToThread(threadId: ThreadId, text: string): Promise<ReplyId>;
-    saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    setCreatorStatus(user: Principal, status: boolean): Promise<void>;
-    // Shops
-    createShop(name: string, description: string, bannerBlob: ExternalBlob | null): Promise<ShopId>;
-    getAllShops(): Promise<Array<Shop>>;
-    getShop(id: ShopId): Promise<Shop | null>;
-    getShopByOwner(owner: Principal): Promise<Shop | null>;
-    addShopProduct(shopId: ShopId, title: string, description: string, price: bigint, imageBlob: ExternalBlob | null): Promise<ShopProductId>;
-    getShopProducts(shopId: ShopId): Promise<Array<ShopProduct>>;
-    deleteShopProduct(productId: ShopProductId): Promise<void>;
-    // Groups
-    createGroup(name: string, description: string, iconBlob: ExternalBlob | null): Promise<GroupId>;
-    getAllGroups(): Promise<Array<Group>>;
-    getGroup(id: GroupId): Promise<Group | null>;
     joinGroup(groupId: GroupId): Promise<void>;
     leaveGroup(groupId: GroupId): Promise<void>;
-    getGroupMembers(groupId: GroupId): Promise<Array<Principal>>;
-    createGroupChannel(groupId: GroupId, name: string, description: string): Promise<ChannelId>;
-    getGroupChannels(groupId: GroupId): Promise<Array<GroupChannel>>;
+    likeVideo(id: VideoId): Promise<void>;
+    markAsSold(id: ListingId): Promise<void>;
     postGroupMessage(channelId: ChannelId, text: string): Promise<GroupMessageId>;
-    getGroupMessages(channelId: ChannelId): Promise<Array<GroupMessage>>;
+    registerCallerAsUser(): Promise<void>;
+    rejectDownload(requestId: bigint): Promise<void>;
+    removeCartProduct(productId: bigint): Promise<void>;
+    removeUser(user: Principal): Promise<void>;
+    replyToThread(threadId: ThreadId, text: string): Promise<ReplyId>;
+    requestDownload(productId: ShopProductId): Promise<bigint>;
+    saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    setCreatorStatus(user: Principal, status: boolean): Promise<void>;
+    updateShop(shopId: ShopId, name: string, description: string, rules: string, contactInfo: string, bannerBlob: ExternalBlob | null, logoBlob: ExternalBlob | null, isNsfw: boolean, categories: Array<string>): Promise<void>;
+    updateShopCategory(id: bigint, name: string): Promise<void>;
+    updateShopProduct(productId: ShopProductId, title: string, description: string, price: bigint, currency: string, imageBlobs: Array<ExternalBlob>, paymentLink: string, stock: bigint, isDigital: boolean, category: string, digitalFileBlob: ExternalBlob | null): Promise<void>;
 }

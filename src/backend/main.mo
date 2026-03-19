@@ -5,21 +5,23 @@ import Time "mo:core/Time";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Principal "mo:core/Principal";
+import Blob "mo:core/Blob";
+import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
 import Order "mo:core/Order";
-import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import Storage "blob-storage/Storage";
+import Migration "migration";
 
-
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
   include MixinStorage();
 
-  // Separate stable Map for creator role -- avoids UserRole type migration
+  // Creator role management
   let creatorPrincipals = Map.empty<Principal, Bool>();
 
   func isCreator(p : Principal) : Bool {
@@ -42,7 +44,7 @@ actor {
     return true;
   };
 
-  // Admin can grant/revoke creator status
+  // Admins can grant/revoke creator role
   public shared ({ caller }) func setCreatorStatus(user : Principal, status : Bool) : async () {
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Only admins can set creator status");
@@ -58,13 +60,13 @@ actor {
   public query ({ caller }) func isCallerCreatorOrAdmin() : async Bool {
     if (caller.isAnonymous()) { return false };
     let isAdm = switch (accessControlState.userRoles.get(caller)) {
-      case (?(#admin)) { true };
+      case (?r) { r == #admin };
       case (_) { false };
     };
     isAdm or isCreator(caller);
   };
 
-  // Register caller as a regular user (safe to call even if already registered)
+  // Register caller as regular user (safe to call even if already registered)
   public shared ({ caller }) func registerCallerAsUser() : async () {
     if (caller.isAnonymous()) { return };
     switch (accessControlState.userRoles.get(caller)) {
@@ -90,11 +92,8 @@ actor {
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (caller.isAnonymous()) { Runtime.trap("Anonymous users cannot save profiles") };
-    // Auto-register as user if not yet registered
-    switch (accessControlState.userRoles.get(caller)) {
-      case (?_) {};
-      case (null) { accessControlState.userRoles.add(caller, #user) };
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save profiles");
     };
     userProfiles.add(caller, profile);
   };
@@ -106,7 +105,7 @@ actor {
     userProfiles.get(user);
   };
 
-  // Public profile lookup (display name + avatar only, for showing in comments/posts)
+  // Public profile lookup (display name + avatar only, for comments/posts)
   public query func getPublicUserProfile(user : Principal) : async ?UserProfile {
     userProfiles.get(user);
   };
@@ -122,7 +121,6 @@ actor {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can get all users");
     };
-    // Collect all known principals (from userRoles AND creatorPrincipals)
     let allPrincipals = Map.empty<Principal, Bool>();
     accessControlState.userRoles.entries().forEach(func((p, _)) { allPrincipals.add(p, true) });
     creatorPrincipals.entries().forEach(func((p, _)) { allPrincipals.add(p, true) });
@@ -158,7 +156,63 @@ actor {
     accessControlState.userRoles.remove(user);
   };
 
-  // Videos
+  // Shop Categories
+  var nextShopCategoryId = 0;
+  type ShopCategory = {
+    id : Nat;
+    name : Text;
+    isActive : Bool;
+  };
+  let shopCategories = Map.empty<Nat, ShopCategory>();
+
+  public shared ({ caller }) func createShopCategory(name : Text) : async Nat {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can create shop categories");
+    };
+    let id = nextShopCategoryId;
+    nextShopCategoryId += 1;
+    shopCategories.add(
+      id,
+      {
+        id;
+        name;
+        isActive = true;
+      },
+    );
+    id;
+  };
+
+  public shared ({ caller }) func updateShopCategory(id : Nat, name : Text) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can update shop categories");
+    };
+    switch (shopCategories.get(id)) {
+      case (null) { Runtime.trap("Category not found") };
+      case (?category) {
+        shopCategories.add(id, { category with name });
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteShopCategory(id : Nat) : async () {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Only admins can delete shop categories");
+    };
+    switch (shopCategories.get(id)) {
+      case (null) { Runtime.trap("Category not found") };
+      case (?category) {
+        shopCategories.add(id, { category with isActive = false });
+      };
+    };
+  };
+
+  public query func getAllShopCategories() : async [ShopCategory] {
+    shopCategories.values().toArray().filter(
+      func(c) { c.isActive }
+    );
+  };
+
+  // Video Sharing
   type VideoId = Nat;
   var nextVideoId = 0;
 
@@ -175,12 +229,6 @@ actor {
 
   let videos = Map.empty<VideoId, Video>();
 
-  module Video {
-    public func compareByTimestamp(v1 : Video, v2 : Video) : Order.Order {
-      Int.compare(v2.timestamp, v1.timestamp);
-    };
-  };
-
   type CommentId = Nat;
   var nextCommentId = 0;
 
@@ -194,9 +242,10 @@ actor {
 
   let comments = Map.empty<CommentId, Comment>();
 
+  // Video upload (registered users only)
   public shared ({ caller }) func createVideo(title : Text, description : Text, videoBlob : Storage.ExternalBlob, thumbnailBlob : Storage.ExternalBlob) : async VideoId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create videos");
+      Runtime.trap("Unauthorized: Only registered users can upload videos");
     };
     let id = nextVideoId;
     nextVideoId += 1;
@@ -215,7 +264,9 @@ actor {
   };
 
   public query func getAllVideos() : async [Video] {
-    videos.values().toArray().sort(Video.compareByTimestamp);
+    let videosArray = videos.values().toArray();
+    if (videosArray.size() == 0) { return [] };
+    videosArray;
   };
 
   public query func getVideo(id : VideoId) : async ?Video {
@@ -223,9 +274,6 @@ actor {
   };
 
   public shared ({ caller }) func likeVideo(id : VideoId) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can like videos");
-    };
     switch (videos.get(id)) {
       case (null) { Runtime.trap("Video not found") };
       case (?video) {
@@ -246,11 +294,9 @@ actor {
 
   public shared ({ caller }) func addComment(videoId : VideoId, text : Text) : async CommentId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can add comments");
+      Runtime.trap("Unauthorized: Only registered users can comment");
     };
-    if (not videos.containsKey(videoId)) {
-      Runtime.trap("Video not found");
-    };
+    if (not videos.containsKey(videoId)) { Runtime.trap("Video not found") };
     let id = nextCommentId;
     nextCommentId += 1;
     let comment : Comment = {
@@ -287,15 +333,10 @@ actor {
 
   let listings = Map.empty<ListingId, Listing>();
 
-  module Listing {
-    public func compareByTimestamp(l1 : Listing, l2 : Listing) : Order.Order {
-      Int.compare(l2.timestamp, l1.timestamp);
-    };
-  };
-
+  // Registered users only
   public shared ({ caller }) func createListing(title : Text, description : Text, price : Nat, image : Storage.ExternalBlob) : async ListingId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create listings");
+      Runtime.trap("Unauthorized: Only registered users can create listings");
     };
     let id = nextListingId;
     nextListingId += 1;
@@ -316,7 +357,7 @@ actor {
   public query func getAllActiveListings() : async [Listing] {
     listings.values().toArray().filter(
       func(l) { not l.isSold }
-    ).sort(Listing.compareByTimestamp);
+    );
   };
 
   public query func getListing(id : ListingId) : async ?Listing {
@@ -345,6 +386,65 @@ actor {
     };
   };
 
+  // Shopping Cart (internal), no public functions
+  type ShoppingCart = {
+    owner : Principal;
+    productIds : List.List<Nat>;
+    timestamp : Int;
+  };
+  let shoppingCarts = Map.empty<Principal, ShoppingCart>();
+
+  type ShoppingCartView = {
+    owner : Principal;
+    productIds : [Nat];
+    timestamp : Int;
+  };
+
+  public shared ({ caller }) func addCartProduct(productId : Nat) : async () {
+    if (caller.isAnonymous()) { Runtime.trap("Anonymous users cannot have cart") };
+    var cart = switch (shoppingCarts.get(caller)) {
+      case (null) {
+        {
+          owner = caller;
+          productIds = List.empty<Nat>();
+          timestamp = Time.now();
+        };
+      };
+      case (?cart) { cart };
+    };
+    cart.productIds.add(productId);
+    shoppingCarts.add(caller, cart);
+  };
+
+  public shared ({ caller }) func removeCartProduct(productId : Nat) : async () {
+    switch (shoppingCarts.get(caller)) {
+      case (null) { Runtime.trap("No cart found") };
+      case (?cart) {
+        let remaining = switch (cart.productIds.toArray().filter(func(id) { id != productId }).isEmpty()) {
+          case (true) { List.empty<Nat>() };
+          case (false) { List.fromArray<Nat>(cart.productIds.toArray().filter(func(id) { id != productId })) };
+        };
+        shoppingCarts.add(caller, { cart with productIds = remaining });
+      };
+    };
+  };
+
+  public shared ({ caller }) func clearCart() : async () {
+    shoppingCarts.remove(caller);
+  };
+
+  public query ({ caller }) func getCart() : async ?ShoppingCartView {
+    switch (shoppingCarts.get(caller)) {
+      case (null) { null };
+      case (?cart) {
+        ?{
+          cart with
+          productIds = cart.productIds.toArray();
+        };
+      };
+    };
+  };
+
   // Forums
   type CategoryId = Nat;
   var nextCategoryId = 0;
@@ -359,9 +459,6 @@ actor {
   let categories = Map.empty<CategoryId, ForumCategory>();
 
   public shared ({ caller }) func createCategory(name : Text, description : Text) : async CategoryId {
-    if (not isCreatorOrAdmin(caller)) {
-      Runtime.trap("Unauthorized: Only admins or creators can create categories");
-    };
     let id = nextCategoryId;
     nextCategoryId += 1;
     let category : ForumCategory = {
@@ -394,18 +491,9 @@ actor {
 
   let threads = Map.empty<ThreadId, ForumThread>();
 
-  module ForumThread {
-    public func compareByTimestamp(t1 : ForumThread, t2 : ForumThread) : Order.Order {
-      Int.compare(t2.timestamp, t1.timestamp);
-    };
-  };
-
   public shared ({ caller }) func createThread(categoryId : CategoryId, title : Text, body : Text) : async ThreadId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create threads");
-    };
-    if (not categories.containsKey(categoryId)) {
-      Runtime.trap("Category not found");
+      Runtime.trap("Unauthorized: Only registered users can create threads");
     };
     let id = nextThreadId;
     nextThreadId += 1;
@@ -424,7 +512,7 @@ actor {
   public query func getThreadsInCategory(categoryId : CategoryId) : async [ForumThread] {
     threads.values().toArray().filter(
       func(t) { t.categoryId == categoryId }
-    ).sort(ForumThread.compareByTimestamp);
+    );
   };
 
   type ReplyId = Nat;
@@ -459,10 +547,7 @@ actor {
 
   public shared ({ caller }) func replyToThread(threadId : ThreadId, text : Text) : async ReplyId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can reply to threads");
-    };
-    if (not threads.containsKey(threadId)) {
-      Runtime.trap("Thread not found");
+      Runtime.trap("Unauthorized: Only registered users can reply to threads");
     };
     let id = nextReplyId;
     nextReplyId += 1;
@@ -477,7 +562,7 @@ actor {
     id;
   };
 
-  // Shops
+  // Shops & Products
   type ShopId = Nat;
   var nextShopId = 0;
 
@@ -485,7 +570,12 @@ actor {
     id : ShopId;
     name : Text;
     description : Text;
+    rules : Text;
+    contactInfo : Text;
     bannerBlob : ?Storage.ExternalBlob;
+    logoBlob : ?Storage.ExternalBlob;
+    isNsfw : Bool;
+    categories : [Text];
     owner : Principal;
     timestamp : Int;
   };
@@ -501,15 +591,44 @@ actor {
     title : Text;
     description : Text;
     price : Nat;
-    imageBlob : ?Storage.ExternalBlob;
+    imageBlobs : [Storage.ExternalBlob];
+    digitalFileBlob : ?Storage.ExternalBlob;
+    currency : Text;
+    paymentLink : Text;
+    stock : Nat;
+    isDigital : Bool;
+    category : Text;
     timestamp : Int;
   };
 
   let shopProducts = Map.empty<ShopProductId, ShopProduct>();
 
-  public shared ({ caller }) func createShop(name : Text, description : Text, bannerBlob : ?Storage.ExternalBlob) : async ShopId {
-    if (not isCreatorOrAdmin(caller)) {
-      Runtime.trap("Unauthorized: Only admins or creators can create shops");
+  type ShopQuestion = {
+    id : Nat;
+    shopId : ShopId;
+    asker : Principal;
+    question : Text;
+    answer : Text;
+    answered : Bool;
+    timestamp : Int;
+  };
+
+  var nextShopQuestionId = 0;
+  let shopQuestions = Map.empty<Nat, ShopQuestion>();
+
+  func canCreateShop(caller : Principal, isNsfw : Bool) : Bool {
+    let existingShops = shops.values().toArray().filter(func(s) { s.owner == caller });
+    if (existingShops.isEmpty()) { return true };
+    if (existingShops.size() >= 2) { return false };
+    for (shop in existingShops.values()) {
+      if (shop.isNsfw == isNsfw) { return false };
+    };
+    true;
+  };
+
+  public shared ({ caller }) func createShop(name : Text, description : Text, rules : Text, contactInfo : Text, isNsfw : Bool, _shopCategories : [Text], bannerBlob : ?Storage.ExternalBlob) : async ShopId {
+    if (not canCreateShop(caller, isNsfw)) {
+      Runtime.trap("Cannot have more than 1 NSFW and 1 non-NSFW shop");
     };
     let id = nextShopId;
     nextShopId += 1;
@@ -517,12 +636,42 @@ actor {
       id;
       name;
       description;
+      rules;
+      contactInfo;
       bannerBlob;
+      logoBlob = null;
+      isNsfw;
+      categories = [];
       owner = caller;
       timestamp = Time.now();
     };
     shops.add(id, shop);
     id;
+  };
+
+  public shared ({ caller }) func updateShop(shopId : ShopId, name : Text, description : Text, rules : Text, contactInfo : Text, bannerBlob : ?Storage.ExternalBlob, logoBlob : ?Storage.ExternalBlob, isNsfw : Bool, categories : [Text]) : async () {
+    switch (shops.get(shopId)) {
+      case (null) { Runtime.trap("Shop not found") };
+      case (?shop) {
+        if (shop.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Only shop owner or admin can update shop");
+        };
+        let updatedShop = {
+          id = shop.id;
+          name;
+          description;
+          rules;
+          contactInfo;
+          bannerBlob;
+          logoBlob;
+          isNsfw;
+          categories;
+          owner = shop.owner;
+          timestamp = shop.timestamp;
+        };
+        shops.add(shopId, updatedShop);
+      };
+    };
   };
 
   public query func getAllShops() : async [Shop] {
@@ -533,18 +682,11 @@ actor {
     shops.get(id);
   };
 
-  public query func getShopByOwner(owner : Principal) : async ?Shop {
-    var found : ?Shop = null;
-    shops.values().forEach(func(s) {
-      if (s.owner == owner) { found := ?s };
-    });
-    found;
+  public query func getShopsByOwner(owner : Principal) : async [Shop] {
+    shops.values().toArray().filter(func(shop) { shop.owner == owner });
   };
 
-  public shared ({ caller }) func addShopProduct(shopId : ShopId, title : Text, description : Text, price : Nat, imageBlob : ?Storage.ExternalBlob) : async ShopProductId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
-    };
+  public shared ({ caller }) func addShopProduct(shopId : ShopId, title : Text, description : Text, price : Nat, currency : Text, imageBlobs : [Storage.ExternalBlob], paymentLink : Text, stock : Nat, isDigital : Bool, category : Text, digitalFileBlob : ?Storage.ExternalBlob) : async ShopProductId {
     switch (shops.get(shopId)) {
       case (null) { Runtime.trap("Shop not found") };
       case (?shop) {
@@ -559,11 +701,49 @@ actor {
       title;
       description;
       price;
-      imageBlob;
+      imageBlobs;
+      digitalFileBlob;
+      currency;
+      paymentLink;
+      stock;
+      isDigital;
+      category;
       timestamp = Time.now();
     };
     shopProducts.add(id, product);
     id;
+  };
+
+  public shared ({ caller }) func updateShopProduct(productId : ShopProductId, title : Text, description : Text, price : Nat, currency : Text, imageBlobs : [Storage.ExternalBlob], paymentLink : Text, stock : Nat, isDigital : Bool, category : Text, digitalFileBlob : ?Storage.ExternalBlob) : async () {
+    switch (shopProducts.get(productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?product) {
+        switch (shops.get(product.shopId)) {
+          case (null) { Runtime.trap("Shop not found") };
+          case (?shop) {
+            if (shop.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+              Runtime.trap("Only shop owner or admin can update products");
+            };
+            let updatedProduct = {
+              id = product.id;
+              shopId = product.shopId;
+              title;
+              description;
+              price;
+              imageBlobs;
+              digitalFileBlob;
+              currency;
+              paymentLink;
+              stock;
+              isDigital;
+              category;
+              timestamp = product.timestamp;
+            };
+            shopProducts.add(productId, updatedProduct);
+          };
+        };
+      };
+    };
   };
 
   public query func getShopProducts(shopId : ShopId) : async [ShopProduct] {
@@ -587,6 +767,68 @@ actor {
         shopProducts.remove(productId);
       };
     };
+  };
+
+  public shared ({ caller }) func deleteShop(shopId : ShopId) : async () {
+    switch (shops.get(shopId)) {
+      case (null) { Runtime.trap("Shop not found") };
+      case (?shop) {
+        if (shop.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Only shop owner or admin can delete shops");
+        };
+        shops.remove(shopId);
+        let remainingProducts = shopProducts.filter(func(_, p) { p.shopId != shopId });
+        shopProducts.clear();
+        for ((k, v) in remainingProducts.entries()) {
+          shopProducts.add(k, v);
+        };
+      };
+    };
+  };
+
+  // Q&A
+  public shared ({ caller }) func askShopQuestion(shopId : ShopId, question : Text) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only registered users can ask shop questions");
+    };
+    if (not shops.containsKey(shopId)) { Runtime.trap("Shop not found") };
+    let id = nextShopQuestionId;
+    nextShopQuestionId += 1;
+    let q : ShopQuestion = {
+      id;
+      shopId;
+      asker = caller;
+      question;
+      answer = "";
+      answered = false;
+      timestamp = Time.now();
+    };
+    shopQuestions.add(id, q);
+    id;
+  };
+
+  public shared ({ caller }) func answerShopQuestion(questionId : Nat, answer : Text) : async () {
+    switch (shopQuestions.get(questionId)) {
+      case (null) { Runtime.trap("Question not found") };
+      case (?q) {
+        switch (shops.get(q.shopId)) {
+          case (null) { Runtime.trap("Shop not found") };
+          case (?shop) {
+            if (shop.owner != caller) {
+              Runtime.trap("Only shop owner can answer questions");
+            };
+          };
+        };
+        let updatedQuestion = { q with answer; answered = true };
+        shopQuestions.add(questionId, updatedQuestion);
+      };
+    };
+  };
+
+  public query func getShopQuestions(shopId : ShopId) : async [ShopQuestion] {
+    shopQuestions.values().toArray().filter(
+      func(q) { q.shopId == shopId }
+    );
   };
 
   // Groups
@@ -631,9 +873,10 @@ actor {
 
   let groupMembers = Map.empty<GroupId, List.List<Principal>>();
 
+  // Group creation (registered users only)
   public shared ({ caller }) func createGroup(name : Text, description : Text, iconBlob : ?Storage.ExternalBlob) : async GroupId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only registered users can create groups");
     };
     let id = nextGroupId;
     nextGroupId += 1;
@@ -661,9 +904,6 @@ actor {
   };
 
   public shared ({ caller }) func joinGroup(groupId : GroupId) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
-    };
     if (not groups.containsKey(groupId)) { Runtime.trap("Group not found") };
     switch (groupMembers.get(groupId)) {
       case (null) {
@@ -680,7 +920,7 @@ actor {
 
   public shared ({ caller }) func leaveGroup(groupId : GroupId) : async () {
     switch (groupMembers.get(groupId)) {
-      case (null) {};
+      case (null) { Runtime.trap("Group not found") };
       case (?members) {
         let filtered = List.fromArray(members.toArray().filter(func(p) { p != caller }));
         groupMembers.add(groupId, filtered);
@@ -696,14 +936,11 @@ actor {
   };
 
   public shared ({ caller }) func createGroupChannel(groupId : GroupId, name : Text, description : Text) : async ChannelId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
-    };
     switch (groups.get(groupId)) {
       case (null) { Runtime.trap("Group not found") };
       case (?group) {
-        if (group.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
-          Runtime.trap("Only group owner or admin can create channels");
+        if (group.owner != caller) {
+          Runtime.trap("Only group owner can create channels");
         };
       };
     };
@@ -720,9 +957,10 @@ actor {
     );
   };
 
+  // Message posting (registered users only)
   public shared ({ caller }) func postGroupMessage(channelId : ChannelId, text : Text) : async GroupMessageId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only registered users can post messages");
     };
     if (not groupChannels.containsKey(channelId)) { Runtime.trap("Channel not found") };
     let id = nextGroupMessageId;
@@ -742,5 +980,136 @@ actor {
     groupMessages.values().toArray().filter(
       func(m) { m.channelId == channelId }
     );
+  };
+
+  // Download Requests
+  type DownloadRequest = {
+    id : Nat;
+    productId : ShopProductId;
+    shopId : ShopId;
+    requester : Principal;
+    status : { #pending; #approved; #rejected };
+    timestamp : Int;
+  };
+
+  var nextDownloadRequestId = 0;
+  let downloadRequests = Map.empty<Nat, DownloadRequest>();
+
+  public shared ({ caller }) func requestDownload(productId : ShopProductId) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only registered users can request downloads");
+    };
+    switch (shopProducts.get(productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?product) {
+        if (not product.isDigital) {
+          Runtime.trap("Can only request downloads for digital products");
+        };
+        let id = nextDownloadRequestId;
+        nextDownloadRequestId += 1;
+        let request : DownloadRequest = {
+          id;
+          productId;
+          shopId = product.shopId;
+          requester = caller;
+          status = #pending;
+          timestamp = Time.now();
+        };
+        downloadRequests.add(id, request);
+        id;
+      };
+    };
+  };
+
+  public shared ({ caller }) func approveDownload(requestId : Nat) : async () {
+    switch (downloadRequests.get(requestId)) {
+      case (null) { Runtime.trap("Request not found") };
+      case (?request) {
+        switch (shops.get(request.shopId)) {
+          case (null) { Runtime.trap("Shop not found") };
+          case (?shop) {
+            if (shop.owner != caller) {
+              Runtime.trap("Only shop owner can approve requests");
+            };
+          };
+        };
+        downloadRequests.add(requestId, { request with status = #approved });
+      };
+    };
+  };
+
+  public shared ({ caller }) func rejectDownload(requestId : Nat) : async () {
+    switch (downloadRequests.get(requestId)) {
+      case (null) { Runtime.trap("Request not found") };
+      case (?request) {
+        switch (shops.get(request.shopId)) {
+          case (null) { Runtime.trap("Shop not found") };
+          case (?shop) {
+            if (shop.owner != caller) {
+              Runtime.trap("Only shop owner can reject requests");
+            };
+          };
+        };
+        downloadRequests.add(requestId, { request with status = #rejected });
+      };
+    };
+  };
+
+  public query ({ caller }) func getDownloadRequests(shopId : ShopId) : async [DownloadRequest] {
+    switch (shops.get(shopId)) {
+      case (null) { Runtime.trap("Shop not found") };
+      case (?shop) {
+        if (shop.owner != caller) {
+          Runtime.trap("Only shop owner can view requests");
+        };
+        downloadRequests.values().toArray().filter(func(r) { r.shopId == shopId });
+      };
+    };
+  };
+
+  public query ({ caller }) func getMyDownloadRequests() : async [(DownloadRequest, ?ShopProduct)] {
+    switch (downloadRequests.isEmpty()) {
+      case (true) { [] };
+      case (false) {
+        downloadRequests.values().toArray().filter(
+          func(req) { req.requester == caller }
+        ).map<DownloadRequest, (DownloadRequest, ?ShopProduct)>(
+          func(request) {
+            let product = if (request.status == #approved) {
+              switch (shopProducts.get(request.productId)) {
+                case (p) { p };
+              };
+            } else { null };
+            (request, product);
+          }
+        );
+      };
+    };
+  };
+
+  // Restoration/Upgrade Testing Support
+  public query ({ caller }) func getDatabaseCounts() : async {
+    videos : Nat;
+    listings : Nat;
+    threads : Nat;
+    categories : Nat;
+    shops : Nat;
+    shopProducts : Nat;
+    shopQuestions : Nat;
+    downloadRequests : Nat;
+    groups : Nat;
+  } {
+    if (not AccessControl.isAdmin(accessControlState, caller)) { Runtime.trap("Unauthorized") };
+    {
+      videos = videos.values().toArray().size();
+      listings = listings.values().toArray().size();
+      threads = threads.values().toArray().size();
+      categories = categories.values().toArray().size();
+      shops = shops.values().toArray().size();
+      shopProducts = shopProducts.values().toArray().size();
+      shopQuestions = shopQuestions.values().toArray().size();
+      downloadRequests = downloadRequests.values().toArray().size();
+      groups = groups.values().toArray().size();
+    };
   };
 };

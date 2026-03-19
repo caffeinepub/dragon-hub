@@ -134,12 +134,16 @@ export function useIsCreatorOrAdmin() {
     queryFn: async () => {
       if (!actor || !identity) return false;
       try {
-        return await (actor as any).isCallerCreatorOrAdmin();
-      } catch {
+        return await actor.isCallerCreatorOrAdmin();
+      } catch (err) {
+        console.error("isCallerCreatorOrAdmin error:", err);
         return false;
       }
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !!identity && !isFetching,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -365,9 +369,10 @@ export function useAllShops() {
     queryKey: ["shops"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllShops();
+      return actor.getAllShops();
     },
     enabled: !!actor && !isFetching,
+    refetchInterval: 5000,
   });
 }
 
@@ -377,9 +382,10 @@ export function useShop(id: bigint) {
     queryKey: ["shop", id.toString()],
     queryFn: async () => {
       if (!actor) return null;
-      return (actor as any).getShop(id);
+      return actor.getShop(id);
     },
     enabled: !!actor && !isFetching,
+    refetchInterval: 5000,
   });
 }
 
@@ -389,7 +395,7 @@ export function useShopByOwner(owner: any) {
     queryKey: ["shopByOwner", owner?.toString()],
     queryFn: async () => {
       if (!actor || !owner) return null;
-      return (actor as any).getShopByOwner(owner);
+      return actor.getShopsByOwner(owner);
     },
     enabled: !!actor && !isFetching && !!owner,
   });
@@ -401,9 +407,23 @@ export function useShopProducts(shopId: bigint) {
     queryKey: ["shopProducts", shopId.toString()],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getShopProducts(shopId);
+      return actor.getShopProducts(shopId);
     },
     enabled: !!actor && !isFetching,
+    refetchInterval: 5000,
+  });
+}
+
+export function useShopQuestions(shopId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["shopQuestions", shopId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getShopQuestions(shopId);
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 5000,
   });
 }
 
@@ -414,15 +434,35 @@ export function useCreateShop() {
     mutationFn: async ({
       name,
       description,
+      rules,
+      contactInfo,
       bannerFile,
-    }: { name: string; description: string; bannerFile: File | null }) => {
+      isNsfw,
+      categories,
+    }: {
+      name: string;
+      description: string;
+      rules: string;
+      contactInfo: string;
+      bannerFile: File | null;
+      isNsfw: boolean;
+      categories: string[];
+    }) => {
       if (!actor) throw new Error("Not connected");
       let bannerBlob: ExternalBlob | null = null;
       if (bannerFile) {
         const bytes = new Uint8Array(await bannerFile.arrayBuffer());
         bannerBlob = ExternalBlob.fromBytes(bytes);
       }
-      return (actor as any).createShop(name, description, bannerBlob);
+      return actor.createShop(
+        name,
+        description,
+        rules,
+        contactInfo,
+        isNsfw,
+        categories,
+        bannerBlob,
+      );
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shops"] }),
   });
@@ -437,30 +477,71 @@ export function useAddShopProduct() {
       title,
       description,
       price,
-      imageFile,
+      currency,
+      imageFiles,
+      paymentLink,
+      stock,
+      isDigital,
+      category,
+      digitalFile,
     }: {
       shopId: bigint;
       title: string;
       description: string;
       price: bigint;
-      imageFile: File | null;
+      currency: string;
+      imageFiles: File[];
+      paymentLink: string;
+      stock: bigint;
+      isDigital: boolean;
+      category: string;
+      digitalFile?: File | null;
     }) => {
       if (!actor) throw new Error("Not connected");
-      let imageBlob: ExternalBlob | null = null;
-      if (imageFile) {
-        const bytes = new Uint8Array(await imageFile.arrayBuffer());
-        imageBlob = ExternalBlob.fromBytes(bytes);
+      const imageBlobs = await Promise.all(
+        imageFiles.map((f) =>
+          f
+            .arrayBuffer()
+            .then((b) => ExternalBlob.fromBytes(new Uint8Array(b))),
+        ),
+      );
+      let digitalFileBlob: ExternalBlob | null = null;
+      if (digitalFile) {
+        digitalFileBlob = ExternalBlob.fromBytes(
+          new Uint8Array(await digitalFile.arrayBuffer()),
+        );
       }
-      return (actor as any).addShopProduct(
+      return actor.addShopProduct(
         shopId,
         title,
         description,
         price,
-        imageBlob,
+        currency,
+        imageBlobs,
+        paymentLink,
+        stock,
+        isDigital,
+        category,
+        digitalFileBlob,
       );
     },
     onSuccess: (_data, { shopId }) =>
       qc.invalidateQueries({ queryKey: ["shopProducts", shopId.toString()] }),
+  });
+}
+
+export function useDeleteShop() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (shopId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteShop(shopId);
+    },
+    onSuccess: (_data, shopId) => {
+      qc.invalidateQueries({ queryKey: ["shops"] });
+      qc.invalidateQueries({ queryKey: ["shop", shopId.toString()] });
+    },
   });
 }
 
@@ -473,10 +554,43 @@ export function useDeleteShopProduct() {
       shopId: _shopId,
     }: { productId: bigint; shopId: bigint }) => {
       if (!actor) throw new Error("Not connected");
-      return (actor as any).deleteShopProduct(productId);
+      return actor.deleteShopProduct(productId);
     },
     onSuccess: (_data, { shopId }) =>
       qc.invalidateQueries({ queryKey: ["shopProducts", shopId.toString()] }),
+  });
+}
+
+export function useAskShopQuestion() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      shopId,
+      question,
+    }: { shopId: bigint; question: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.askShopQuestion(shopId, question);
+    },
+    onSuccess: (_data, { shopId }) =>
+      qc.invalidateQueries({ queryKey: ["shopQuestions", shopId.toString()] }),
+  });
+}
+
+export function useAnswerShopQuestion() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      questionId,
+      answer,
+      shopId: _shopId,
+    }: { questionId: bigint; answer: string; shopId: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.answerShopQuestion(questionId, answer);
+    },
+    onSuccess: (_data, { shopId }) =>
+      qc.invalidateQueries({ queryKey: ["shopQuestions", shopId.toString()] }),
   });
 }
 
@@ -622,5 +736,242 @@ export function usePostGroupMessage() {
       qc.invalidateQueries({
         queryKey: ["groupMessages", channelId.toString()],
       }),
+  });
+}
+
+// ============ SHOP UPDATE HOOKS ============
+
+export function useUpdateShop() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      shopId,
+      name,
+      description,
+      rules,
+      contactInfo,
+      bannerBlob,
+      logoBlob,
+      isNsfw,
+      categories,
+    }: {
+      shopId: bigint;
+      name: string;
+      description: string;
+      rules: string;
+      contactInfo: string;
+      bannerBlob: ExternalBlob | null;
+      logoBlob: ExternalBlob | null;
+      isNsfw: boolean;
+      categories: string[];
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.updateShop(
+        shopId,
+        name,
+        description,
+        rules,
+        contactInfo,
+        bannerBlob,
+        logoBlob,
+        isNsfw,
+        categories,
+      );
+    },
+    onSuccess: (_data, { shopId }) => {
+      qc.invalidateQueries({ queryKey: ["shops"] });
+      qc.invalidateQueries({ queryKey: ["shop", shopId.toString()] });
+      qc.invalidateQueries({ queryKey: ["shopByOwner"] });
+    },
+  });
+}
+
+export function useUpdateShopProduct() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      productId,
+      shopId: _shopId2,
+      title,
+      description,
+      price,
+      currency,
+      imageBlobs,
+      paymentLink,
+      stock,
+      isDigital,
+      category,
+      digitalFileBlob,
+    }: {
+      productId: bigint;
+      shopId: bigint;
+      title: string;
+      description: string;
+      price: bigint;
+      currency: string;
+      imageBlobs: ExternalBlob[];
+      paymentLink: string;
+      stock: bigint;
+      isDigital: boolean;
+      category: string;
+      digitalFileBlob?: ExternalBlob | null;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.updateShopProduct(
+        productId,
+        title,
+        description,
+        price,
+        currency,
+        imageBlobs,
+        paymentLink,
+        stock,
+        isDigital,
+        category,
+        digitalFileBlob ?? null,
+      );
+    },
+    onSuccess: (_data, { shopId }) =>
+      qc.invalidateQueries({ queryKey: ["shopProducts", shopId.toString()] }),
+  });
+}
+
+export function useShopsByOwner(owner: any) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["shopsByOwner", owner?.toString()],
+    queryFn: async () => {
+      if (!actor || !owner) return [];
+      return actor.getShopsByOwner(owner);
+    },
+    enabled: !!actor && !isFetching && !!owner,
+    refetchInterval: 5000,
+  });
+}
+
+export function useAllShopCategories() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["shopCategories"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllShopCategories();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreateShopCategory() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.createShopCategory(name);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopCategories"] }),
+  });
+}
+
+export function useUpdateShopCategory() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: bigint; name: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.updateShopCategory(id, name);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopCategories"] }),
+  });
+}
+
+export function useDeleteShopCategory() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteShopCategory(id);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopCategories"] }),
+  });
+}
+
+export function useDownloadRequests(shopId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["downloadRequests", shopId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getDownloadRequests(shopId);
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 10000,
+  });
+}
+
+export function useMyDownloadRequests() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery({
+    queryKey: ["myDownloadRequests", identity?.getPrincipal().toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyDownloadRequests();
+    },
+    enabled: !!actor && !isFetching && !!identity,
+    refetchInterval: 10000,
+  });
+}
+
+export function useRequestDownload() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (productId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.requestDownload(productId);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["myDownloadRequests"] }),
+  });
+}
+
+export function useApproveDownload() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      shopId: _shopId,
+    }: { requestId: bigint; shopId: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.approveDownload(requestId);
+    },
+    onSuccess: (_d, { shopId }) => {
+      qc.invalidateQueries({
+        queryKey: ["downloadRequests", shopId.toString()],
+      });
+    },
+  });
+}
+
+export function useRejectDownload() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      shopId: _shopId2,
+    }: { requestId: bigint; shopId: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.rejectDownload(requestId);
+    },
+    onSuccess: (_d, { shopId }) => {
+      qc.invalidateQueries({
+        queryKey: ["downloadRequests", shopId.toString()],
+      });
+    },
   });
 }
