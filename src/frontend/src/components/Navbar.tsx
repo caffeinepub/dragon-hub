@@ -9,10 +9,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Flame, LogOut, Menu, Shield, User, X } from "lucide-react";
+import {
+  Flame,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Shield,
+  ShoppingBag,
+  User,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { useIsCreatorOrAdmin } from "../hooks/useQueries";
 
 const navLinks = [
   { href: "/" as const, label: "Home" },
@@ -51,6 +61,8 @@ export function Navbar() {
     enabled: !!actor && !isFetching && !!identity,
   });
 
+  const { data: isCreatorOrAdmin } = useIsCreatorOrAdmin();
+
   const { data: profile } = useQuery({
     queryKey: ["callerProfile", principal],
     queryFn: async () => {
@@ -88,22 +100,50 @@ export function Navbar() {
             </Link>
           ))}
           {identity && (
-            <Link
-              to="/admin"
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-                location.pathname === "/admin"
-                  ? "bg-primary/10 text-primary"
-                  : isAdmin
-                    ? "text-primary/80 hover:text-primary hover:bg-primary/10"
+            <>
+              {isCreatorOrAdmin && (
+                <Link
+                  to="/groups/manage"
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                    location.pathname === "/groups/manage"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                  data-ocid="nav.manage_groups.link"
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  Manage Groups
+                </Link>
+              )}
+              <Link
+                to="/buyer"
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                  location.pathname === "/buyer"
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-              data-ocid="nav.admin.link"
-            >
-              <Shield
-                className={`h-3.5 w-3.5 ${isAdmin ? "text-primary" : ""}`}
-              />
-              Admin
-            </Link>
+                }`}
+                data-ocid="nav.buyer.link"
+              >
+                <ShoppingBag className="h-3.5 w-3.5" />
+                My Purchases
+              </Link>
+              <Link
+                to="/admin"
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                  location.pathname === "/admin"
+                    ? "bg-primary/10 text-primary"
+                    : isAdmin
+                      ? "text-primary/80 hover:text-primary hover:bg-primary/10"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+                data-ocid="nav.admin.link"
+              >
+                <Shield
+                  className={`h-3.5 w-3.5 ${isAdmin ? "text-primary" : ""}`}
+                />
+                Admin
+              </Link>
+            </>
           )}
         </nav>
 
@@ -149,6 +189,26 @@ export function Navbar() {
                     <User className="h-4 w-4 mr-2" /> Profile
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link
+                    to="/buyer"
+                    className="cursor-pointer"
+                    data-ocid="nav.buyer.dropdown.link"
+                  >
+                    <ShoppingBag className="h-4 w-4 mr-2" /> My Purchases
+                  </Link>
+                </DropdownMenuItem>
+                {isCreatorOrAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/groups/manage"
+                      className="cursor-pointer"
+                      data-ocid="nav.manage_groups.dropdown.link"
+                    >
+                      <LayoutDashboard className="h-4 w-4 mr-2" /> Manage Groups
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                   <Link
                     to="/admin"
@@ -213,19 +273,51 @@ export function Navbar() {
             </Link>
           ))}
           {identity && (
-            <Link
-              to="/admin"
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isAdmin
-                  ? "text-primary hover:bg-primary/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-              data-ocid="nav.mobile.admin.link"
-            >
-              <Shield className={`h-4 w-4 ${isAdmin ? "text-primary" : ""}`} />
-              {isAdmin ? "Admin Panel" : "Admin / Claim Access"}
-            </Link>
+            <>
+              {isCreatorOrAdmin && (
+                <Link
+                  to="/groups/manage"
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    location.pathname === "/groups/manage"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                  data-ocid="nav.mobile.manage_groups.link"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Manage Groups
+                </Link>
+              )}
+              <Link
+                to="/buyer"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  location.pathname === "/buyer"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+                data-ocid="nav.mobile.buyer.link"
+              >
+                <ShoppingBag className="h-4 w-4" />
+                My Purchases
+              </Link>
+              <Link
+                to="/admin"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isAdmin
+                    ? "text-primary hover:bg-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+                data-ocid="nav.mobile.admin.link"
+              >
+                <Shield
+                  className={`h-4 w-4 ${isAdmin ? "text-primary" : ""}`}
+                />
+                {isAdmin ? "Admin Panel" : "Admin / Claim Access"}
+              </Link>
+            </>
           )}
         </div>
       )}

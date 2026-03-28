@@ -16,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
+  AlertTriangle,
+  Ban,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -27,6 +29,7 @@ import {
   Package,
   Plus,
   ScrollText,
+  Star,
   Store,
   Tag,
   Trash2,
@@ -37,16 +40,21 @@ import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddShopProduct,
+  useAddShopReview,
   useAnswerShopQuestion,
   useAskShopQuestion,
   useDeleteShop,
   useDeleteShopProduct,
   useIsAdmin,
+  useIsUserBanned,
   useMyDownloadRequests,
+  useMyShopReview,
+  useRecordPurchase,
   useRequestDownload,
   useShop,
   useShopProducts,
   useShopQuestions,
+  useShopReviews,
 } from "../hooks/useQueries";
 
 function formatPrice(price: bigint, currency: string): string {
@@ -61,6 +69,35 @@ function isURL(str: string): boolean {
   } catch {
     return false;
   }
+}
+
+function StarRating({
+  rating,
+  interactive,
+  onRate,
+}: {
+  rating: number;
+  interactive?: boolean;
+  onRate?: (r: number) => void;
+}) {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star
+          key={s}
+          className={`h-5 w-5 transition-colors ${
+            s <= (interactive ? hovered || rating : rating)
+              ? "fill-yellow-400 text-yellow-400"
+              : "fill-muted text-muted-foreground/30"
+          } ${interactive ? "cursor-pointer" : ""}`}
+          onMouseEnter={() => interactive && setHovered(s)}
+          onMouseLeave={() => interactive && setHovered(0)}
+          onClick={() => interactive && onRate?.(s)}
+        />
+      ))}
+    </div>
+  );
 }
 
 function ImageCarousel({ urls, title }: { urls: string[]; title: string }) {
@@ -282,6 +319,210 @@ function QASection({
   );
 }
 
+function ReviewsSection({
+  shopId,
+  isOwner,
+  isSignedIn,
+  isBanned,
+}: {
+  shopId: bigint;
+  isOwner: boolean;
+  isSignedIn: boolean;
+  isBanned: boolean;
+}) {
+  const { data: reviews, isLoading } = useShopReviews(shopId);
+  const { data: myReview } = useMyShopReview(shopId);
+  const addReview = useAddShopReview();
+
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  const canReview = isSignedIn && !isOwner && !isBanned;
+
+  const handleSubmit = async () => {
+    if (!comment.trim()) {
+      toast.error("Please write a comment");
+      return;
+    }
+    try {
+      await addReview.mutateAsync({ shopId, rating: BigInt(rating), comment });
+      setComment("");
+      setEditing(false);
+      toast.success(myReview ? "Review updated!" : "Review submitted!");
+    } catch {
+      toast.error("Failed to submit review");
+    }
+  };
+
+  const truncatePrincipal = (p: { toString(): string }) => {
+    const s = p.toString();
+    return s.length > 14 ? `${s.slice(0, 8)}...${s.slice(-5)}` : s;
+  };
+
+  const formatDate = (ts: bigint) =>
+    new Date(Number(ts) / 1_000_000).toLocaleDateString();
+
+  return (
+    <section className="mt-10" data-ocid="shop.reviews.panel">
+      <div className="flex items-center gap-2 mb-4">
+        <Star className="h-5 w-5 text-yellow-400" />
+        <h2 className="font-display text-xl font-semibold">Reviews</h2>
+        {reviews && reviews.length > 0 && (
+          <span className="text-sm text-muted-foreground">
+            ({reviews.length})
+          </span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3" data-ocid="shop.reviews.loading_state">
+          {[1, 2].map((k) => (
+            <Skeleton key={k} className="h-20 w-full" />
+          ))}
+        </div>
+      ) : reviews && reviews.length > 0 ? (
+        <div className="space-y-3 mb-6">
+          {reviews.map((review, i) => (
+            <div
+              key={review.id.toString()}
+              className="bg-card border border-border rounded-lg p-4"
+              data-ocid={`shop.review.item.${i + 1}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-4 w-4 ${
+                            s <= Number(review.rating)
+                              ? "fill-yellow-400 text-yellow-400"
+                              : "fill-muted text-muted-foreground/30"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {truncatePrincipal(review.reviewer)}
+                    </span>
+                  </div>
+                  {review.comment && (
+                    <p className="text-sm text-foreground mt-2">
+                      {review.comment}
+                    </p>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
+                  {formatDate(review.timestamp)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p
+          className="text-muted-foreground text-sm mb-6"
+          data-ocid="shop.reviews.empty_state"
+        >
+          No reviews yet. Be the first!
+        </p>
+      )}
+
+      {/* Leave / Edit Review form */}
+      {canReview &&
+        (myReview && !editing ? (
+          <div
+            className="bg-muted/30 border border-border rounded-lg p-4"
+            data-ocid="shop.review.panel"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-foreground">Your review</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRating(Number(myReview.rating));
+                  setComment(myReview.comment);
+                  setEditing(true);
+                }}
+                data-ocid="shop.review.edit_button"
+              >
+                Edit Review
+              </Button>
+            </div>
+            <div className="flex items-center gap-0.5 mb-1">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star
+                  key={s}
+                  className={`h-4 w-4 ${
+                    s <= Number(myReview.rating)
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "fill-muted text-muted-foreground/30"
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">{myReview.comment}</p>
+          </div>
+        ) : !myReview || editing ? (
+          <div
+            className="bg-muted/30 border border-border rounded-lg p-4"
+            data-ocid="shop.review.panel"
+          >
+            <h3 className="font-medium text-foreground mb-3">
+              {myReview ? "Edit Your Review" : "Leave a Review"}
+            </h3>
+            <div className="mb-3">
+              <Label className="mb-2 block">Rating</Label>
+              <StarRating rating={rating} interactive onRate={setRating} />
+            </div>
+            <div className="mb-3">
+              <Label htmlFor="review-comment">Comment</Label>
+              <Textarea
+                id="review-comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Share your experience..."
+                rows={3}
+                data-ocid="shop.review.textarea"
+              />
+            </div>
+            <div className="flex gap-2">
+              {editing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditing(false)}
+                  data-ocid="shop.review.cancel_button"
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={handleSubmit}
+                disabled={addReview.isPending}
+                className="bg-accent text-accent-foreground hover:bg-accent/90"
+                data-ocid="shop.review.submit_button"
+              >
+                {addReview.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                {addReview.isPending
+                  ? "Submitting..."
+                  : myReview
+                    ? "Update Review"
+                    : "Submit Review"}
+              </Button>
+            </div>
+          </div>
+        ) : null)}
+    </section>
+  );
+}
+
 export function ShopDetailPage() {
   const { id } = useParams({ from: "/shops/$id" });
   const shopId = BigInt(id);
@@ -295,7 +536,17 @@ export function ShopDetailPage() {
   const deleteProduct = useDeleteShopProduct();
   const deleteShop = useDeleteShop();
   const requestDownload = useRequestDownload();
+  const recordPurchase = useRecordPurchase();
   const { data: myDownloadRequests } = useMyDownloadRequests();
+
+  const callerPrincipal = identity?.getPrincipal();
+  const isOwner = shop && callerPrincipal?.toString() === shop.owner.toString();
+  const isSignedIn = !!identity;
+
+  const { data: isBanned } = useIsUserBanned(
+    shopId,
+    isSignedIn && !isOwner ? (callerPrincipal ?? null) : null,
+  );
 
   const [productOpen, setProductOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -307,10 +558,6 @@ export function ShopDetailPage() {
   const [stock, setStock] = useState("1");
   const [isDigital, setIsDigital] = useState(false);
   const [category, setCategory] = useState("");
-
-  const callerPrincipal = identity?.getPrincipal().toString();
-  const isOwner = shop && callerPrincipal === shop.owner.toString();
-  const isSignedIn = !!identity;
 
   const handleAddProduct = async () => {
     if (!title.trim() || !priceVal) {
@@ -390,6 +637,25 @@ export function ShopDetailPage() {
       >
         <Store className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
         <h2 className="font-display text-2xl font-bold">Shop not found</h2>
+      </main>
+    );
+  }
+
+  // Banned user banner
+  if (isBanned) {
+    return (
+      <main
+        className="container mx-auto px-4 py-20 text-center"
+        data-ocid="shop.banned.panel"
+      >
+        <Ban className="h-16 w-16 mx-auto mb-4 text-destructive/60" />
+        <h2 className="font-display text-2xl font-bold mb-2">
+          Access Restricted
+        </h2>
+        <p className="text-muted-foreground">
+          You have been banned from <strong>{shop.name}</strong>. You cannot
+          view or purchase from this shop.
+        </p>
       </main>
     );
   }
@@ -790,6 +1056,10 @@ export function ShopDetailPage() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 data-ocid={`shop.product.buy_button.${i + 1}`}
+                                onClick={() => {
+                                  // Record purchase to trigger seller alert
+                                  recordPurchase.mutate(p.id);
+                                }}
                               >
                                 <Button
                                   size="sm"
@@ -881,6 +1151,15 @@ export function ShopDetailPage() {
           })}
         </motion.div>
       )}
+
+      {/* Reviews */}
+      <Separator className="mt-10" />
+      <ReviewsSection
+        shopId={shopId}
+        isOwner={!!isOwner}
+        isSignedIn={isSignedIn}
+        isBanned={!!isBanned}
+      />
 
       {/* Q&A */}
       <Separator className="mt-10" />

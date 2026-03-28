@@ -50,12 +50,14 @@ export function HomePage() {
             backgroundPosition: "center",
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/20 to-background" />
+          {/* subtle darkening overlay so image still shows but text is readable */}
+          <div className="absolute inset-0 bg-black/30" />
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="relative z-10 text-center px-8 py-8 max-w-3xl mx-auto bg-background/60 backdrop-blur-sm rounded-2xl"
+            className="relative z-10 text-center px-8 py-8 max-w-3xl mx-auto rounded-2xl shadow-2xl border border-border"
+            style={{ backgroundColor: "hsl(var(--card))" }}
           >
             <div className="flex items-center justify-center gap-2 mb-4">
               <Flame className="h-6 w-6 text-primary" />
@@ -71,7 +73,7 @@ export function HomePage() {
               Dragon<span className="text-primary">Hub</span>
             </h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
-              Watch, create, sell, and discuss — all in one fiery creative
+              Watch, create, sell, and discuss &mdash; all in one fiery creative
               community.
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
@@ -103,10 +105,10 @@ export function HomePage() {
 
       <div className="container mx-auto px-4 py-12 space-y-16">
         {/* Recent Videos */}
-        <div className="bg-card/30 backdrop-blur-sm rounded-xl p-6">
+        <div className="bg-card rounded-xl p-6 border border-border">
           <section data-ocid="home.videos.section">
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3 bg-muted/40 backdrop-blur-sm rounded-lg px-4 py-2">
+              <div className="flex items-center gap-3 bg-muted rounded-lg px-4 py-2">
                 <div className="h-8 w-1 bg-primary rounded-full" />
                 <h2 className="font-display text-2xl font-bold">
                   Recent Videos
@@ -182,10 +184,10 @@ export function HomePage() {
         </div>
 
         {/* Shop Feed Picks */}
-        <div className="bg-card/30 backdrop-blur-sm rounded-xl p-6">
+        <div className="bg-card rounded-xl p-6 border border-border">
           <section data-ocid="home.marketplace.section">
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3 bg-muted/40 backdrop-blur-sm rounded-lg px-4 py-2">
+              <div className="flex items-center gap-3 bg-muted rounded-lg px-4 py-2">
                 <div className="h-8 w-1 bg-accent rounded-full" />
                 <h2 className="font-display text-2xl font-bold">
                   Shop Feed Picks
@@ -260,10 +262,10 @@ export function HomePage() {
         </div>
 
         {/* Forum Discussions */}
-        <div className="bg-card/30 backdrop-blur-sm rounded-xl p-6">
+        <div className="bg-card rounded-xl p-6 border border-border">
           <section data-ocid="home.forums.section">
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3 bg-muted/40 backdrop-blur-sm rounded-lg px-4 py-2">
+              <div className="flex items-center gap-3 bg-muted rounded-lg px-4 py-2">
                 <div className="h-8 w-1 bg-muted-foreground rounded-full" />
                 <h2 className="font-display text-2xl font-bold">
                   Forum Discussions

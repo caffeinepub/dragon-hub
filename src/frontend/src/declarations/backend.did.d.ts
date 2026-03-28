@@ -50,8 +50,10 @@ export interface Group {
   'owner' : Principal,
   'name' : string,
   'description' : string,
+  'isNsfw' : boolean,
   'iconBlob' : [] | [ExternalBlob],
   'timestamp' : bigint,
+  'category' : string,
 }
 export interface GroupChannel {
   'id' : ChannelId,
@@ -79,7 +81,28 @@ export interface Listing {
   'price' : bigint,
 }
 export type ListingId = bigint;
+export interface PurchaseRecord {
+  'id' : bigint,
+  'shopId' : ShopId,
+  'productTitle' : string,
+  'productId' : ShopProductId,
+  'currency' : string,
+  'timestamp' : bigint,
+  'buyer' : Principal,
+  'price' : bigint,
+}
 export type ReplyId = bigint;
+export interface SellerAlert {
+  'id' : bigint,
+  'alertType' : { 'downloadRequest' : null } |
+    { 'purchase' : null },
+  'shopId' : ShopId,
+  'isRead' : boolean,
+  'message' : string,
+  'timestamp' : bigint,
+  'buyerPrincipal' : Principal,
+  'relatedId' : bigint,
+}
 export interface Shop {
   'id' : ShopId,
   'categories' : Array<string>,
@@ -123,6 +146,14 @@ export interface ShopQuestion {
   'answered' : boolean,
   'answer' : string,
   'timestamp' : bigint,
+}
+export interface ShopReview {
+  'id' : bigint,
+  'shopId' : ShopId,
+  'comment' : string,
+  'timestamp' : bigint,
+  'rating' : bigint,
+  'reviewer' : Principal,
 }
 export interface ShoppingCartView {
   'productIds' : Array<bigint>,
@@ -212,14 +243,20 @@ export interface _SERVICE {
     ],
     ShopProductId
   >,
+  'addShopReview' : ActorMethod<[ShopId, bigint, string], bigint>,
   'answerShopQuestion' : ActorMethod<[bigint, string], undefined>,
   'approveDownload' : ActorMethod<[bigint], undefined>,
   'askShopQuestion' : ActorMethod<[ShopId, string], bigint>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'banUserFromGroup' : ActorMethod<[GroupId, Principal], undefined>,
+  'banUserFromShop' : ActorMethod<[ShopId, Principal], undefined>,
   'claimFirstAdmin' : ActorMethod<[], boolean>,
   'clearCart' : ActorMethod<[], undefined>,
   'createCategory' : ActorMethod<[string, string], CategoryId>,
-  'createGroup' : ActorMethod<[string, string, [] | [ExternalBlob]], GroupId>,
+  'createGroup' : ActorMethod<
+    [string, string, [] | [ExternalBlob], boolean, string],
+    GroupId
+  >,
   'createGroupChannel' : ActorMethod<[GroupId, string, string], ChannelId>,
   'createListing' : ActorMethod<
     [string, string, bigint, ExternalBlob],
@@ -246,6 +283,7 @@ export interface _SERVICE {
   'deleteShop' : ActorMethod<[ShopId], undefined>,
   'deleteShopCategory' : ActorMethod<[bigint], undefined>,
   'deleteShopProduct' : ActorMethod<[ShopProductId], undefined>,
+  'dismissAlert' : ActorMethod<[bigint], undefined>,
   'getAllActiveListings' : ActorMethod<[], Array<Listing>>,
   'getAllCategories' : ActorMethod<[], Array<ForumCategory>>,
   'getAllGroups' : ActorMethod<[], Array<Group>>,
@@ -273,6 +311,7 @@ export interface _SERVICE {
   >,
   'getDownloadRequests' : ActorMethod<[ShopId], Array<DownloadRequest>>,
   'getGroup' : ActorMethod<[GroupId], [] | [Group]>,
+  'getGroupBans' : ActorMethod<[GroupId], Array<Principal>>,
   'getGroupChannels' : ActorMethod<[GroupId], Array<GroupChannel>>,
   'getGroupMembers' : ActorMethod<[GroupId], Array<Principal>>,
   'getGroupMessages' : ActorMethod<[ChannelId], Array<GroupMessage>>,
@@ -281,10 +320,17 @@ export interface _SERVICE {
     [],
     Array<[DownloadRequest, [] | [ShopProduct]]>
   >,
+  'getMyPurchases' : ActorMethod<[], Array<PurchaseRecord>>,
+  'getMyReviews' : ActorMethod<[], Array<ShopReview>>,
+  'getMyShopReview' : ActorMethod<[ShopId], [] | [ShopReview]>,
   'getPublicUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getSellerAlerts' : ActorMethod<[ShopId], Array<SellerAlert>>,
   'getShop' : ActorMethod<[ShopId], [] | [Shop]>,
+  'getShopBans' : ActorMethod<[ShopId], Array<Principal>>,
   'getShopProducts' : ActorMethod<[ShopId], Array<ShopProduct>>,
+  'getShopPurchases' : ActorMethod<[ShopId], Array<PurchaseRecord>>,
   'getShopQuestions' : ActorMethod<[ShopId], Array<ShopQuestion>>,
+  'getShopReviews' : ActorMethod<[ShopId], Array<ShopReview>>,
   'getShopsByOwner' : ActorMethod<[Principal], Array<Shop>>,
   'getThreadWithReplies' : ActorMethod<[ThreadId], [] | [ThreadWithReplies]>,
   'getThreadsInCategory' : ActorMethod<[CategoryId], Array<ForumThread>>,
@@ -292,11 +338,16 @@ export interface _SERVICE {
   'getVideo' : ActorMethod<[VideoId], [] | [Video]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerCreatorOrAdmin' : ActorMethod<[], boolean>,
+  'isUserBannedFromGroup' : ActorMethod<[GroupId, Principal], boolean>,
+  'isUserBannedFromShop' : ActorMethod<[ShopId, Principal], boolean>,
   'joinGroup' : ActorMethod<[GroupId], undefined>,
   'leaveGroup' : ActorMethod<[GroupId], undefined>,
   'likeVideo' : ActorMethod<[VideoId], undefined>,
+  'markAlertRead' : ActorMethod<[bigint], undefined>,
+  'markAllAlertsRead' : ActorMethod<[ShopId], undefined>,
   'markAsSold' : ActorMethod<[ListingId], undefined>,
   'postGroupMessage' : ActorMethod<[ChannelId, string], GroupMessageId>,
+  'recordPurchase' : ActorMethod<[ShopProductId], bigint>,
   'registerCallerAsUser' : ActorMethod<[], undefined>,
   'rejectDownload' : ActorMethod<[bigint], undefined>,
   'removeCartProduct' : ActorMethod<[bigint], undefined>,
@@ -305,6 +356,12 @@ export interface _SERVICE {
   'requestDownload' : ActorMethod<[ShopProductId], bigint>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setCreatorStatus' : ActorMethod<[Principal, boolean], undefined>,
+  'unbanUserFromGroup' : ActorMethod<[GroupId, Principal], undefined>,
+  'unbanUserFromShop' : ActorMethod<[ShopId, Principal], undefined>,
+  'updateGroup' : ActorMethod<
+    [GroupId, string, string, [] | [ExternalBlob], boolean, string],
+    undefined
+  >,
   'updateShop' : ActorMethod<
     [
       ShopId,

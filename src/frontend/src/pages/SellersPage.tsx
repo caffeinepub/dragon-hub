@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@tanstack/react-router";
 import {
+  Ban,
+  Bell,
   CheckCircle,
   Download,
   Edit2,
@@ -21,6 +23,7 @@ import {
   Store,
   Tag,
   Trash2,
+  UserX,
   X,
   XCircle,
 } from "lucide-react";
@@ -36,13 +39,20 @@ import {
   useAllShopCategories,
   useAllShops,
   useApproveDownload,
+  useBanUser,
   useCreateShop,
   useDeleteShopProduct,
+  useDismissAlert,
   useDownloadRequests,
   useIsCreatorOrAdmin,
+  useMarkAlertRead,
+  useMarkAllAlertsRead,
   useRejectDownload,
+  useSellerAlerts,
+  useShopBans,
   useShopProducts,
   useShopsByOwner,
+  useUnbanUser,
   useUpdateShop,
   useUpdateShopProduct,
 } from "../hooks/useQueries";
@@ -482,6 +492,243 @@ function ShopListings({ shopId }: { shopId: bigint }) {
   );
 }
 
+function AlertsPanel({ shopId }: { shopId: bigint }) {
+  const { data: alerts, isLoading } = useSellerAlerts(shopId);
+  const markRead = useMarkAlertRead();
+  const dismiss = useDismissAlert();
+  const markAllRead = useMarkAllAlertsRead();
+
+  const unreadCount = alerts?.filter((a) => !a.isRead).length ?? 0;
+
+  const truncatePrincipal = (p: { toString(): string }) => {
+    const s = p.toString();
+    return s.length > 14 ? `${s.slice(0, 8)}...${s.slice(-5)}` : s;
+  };
+
+  const formatDate = (ts: bigint) =>
+    new Date(Number(ts) / 1_000_000).toLocaleString();
+
+  return (
+    <div className="mt-6" data-ocid="sellers.alerts.panel">
+      <div className="flex items-center gap-2 mb-3">
+        <Bell className="h-5 w-5 text-primary" />
+        <h3 className="font-display text-lg font-semibold">Alerts</h3>
+        {unreadCount > 0 && (
+          <span className="ml-1 bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+            {unreadCount}
+          </span>
+        )}
+        {unreadCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-xs text-muted-foreground"
+            onClick={() =>
+              markAllRead
+                .mutateAsync(shopId)
+                .catch(() => toast.error("Failed to mark all read"))
+            }
+            disabled={markAllRead.isPending}
+            data-ocid="sellers.alerts.button"
+          >
+            Mark All Read
+          </Button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2" data-ocid="sellers.alerts.loading_state">
+          {[1, 2].map((k) => (
+            <Skeleton key={k} className="h-14 w-full" />
+          ))}
+        </div>
+      ) : !alerts?.length ? (
+        <p
+          className="text-sm text-muted-foreground"
+          data-ocid="sellers.alerts.empty_state"
+        >
+          No alerts yet. You&apos;ll be notified here when buyers purchase or
+          request downloads.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {alerts.map((alert, i) => {
+            const isPurchase = "purchase" in alert.alertType;
+            return (
+              <div
+                key={alert.id.toString()}
+                className={`flex items-start justify-between gap-3 p-3 rounded-lg border transition-colors ${
+                  alert.isRead
+                    ? "border-border/40 bg-muted/10 opacity-70"
+                    : "border-primary/30 bg-primary/5"
+                }`}
+                data-ocid={`sellers.alerts.item.${i + 1}`}
+              >
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  {isPurchase ? (
+                    <ShoppingBag className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <Download className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground">{alert.message}</p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">
+                      {truncatePrincipal(alert.buyerPrincipal)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(alert.timestamp)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  {!alert.isRead && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-primary hover:bg-primary/10"
+                      onClick={() =>
+                        markRead
+                          .mutateAsync(alert.id)
+                          .catch(() => toast.error("Failed"))
+                      }
+                      data-ocid={`sellers.alerts.confirm_button.${i + 1}`}
+                    >
+                      Mark Read
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                    onClick={() =>
+                      dismiss
+                        .mutateAsync(alert.id)
+                        .catch(() => toast.error("Failed"))
+                    }
+                    data-ocid={`sellers.alerts.cancel_button.${i + 1}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BanManagementPanel({ shopId }: { shopId: bigint }) {
+  const { data: bans, isLoading } = useShopBans(shopId);
+  const banUser = useBanUser();
+  const unbanUser = useUnbanUser();
+  const [banInput, setBanInput] = useState("");
+
+  const truncatePrincipal = (p: { toString(): string }) => {
+    const s = p.toString();
+    return s.length > 14 ? `${s.slice(0, 8)}...${s.slice(-5)}` : s;
+  };
+
+  const handleBan = async () => {
+    const trimmed = banInput.trim();
+    if (!trimmed) return;
+    try {
+      await banUser.mutateAsync({ shopId, principalStr: trimmed });
+      setBanInput("");
+      toast.success("User banned");
+    } catch {
+      toast.error("Failed to ban user — check the principal ID");
+    }
+  };
+
+  return (
+    <div className="mt-6" data-ocid="sellers.bans.panel">
+      <div className="flex items-center gap-2 mb-3">
+        <Ban className="h-5 w-5 text-destructive" />
+        <h3 className="font-display text-lg font-semibold">Ban Management</h3>
+        {bans && bans.length > 0 && (
+          <Badge variant="destructive" className="ml-1">
+            {bans.length}
+          </Badge>
+        )}
+      </div>
+
+      {/* Ban input */}
+      <div className="flex gap-2 mb-4">
+        <Input
+          value={banInput}
+          onChange={(e) => setBanInput(e.target.value)}
+          placeholder="Paste user principal ID to ban..."
+          className="flex-1 font-mono text-sm"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleBan();
+          }}
+          data-ocid="sellers.bans.input"
+        />
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={handleBan}
+          disabled={banUser.isPending || !banInput.trim()}
+          data-ocid="sellers.bans.button"
+        >
+          {banUser.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <UserX className="h-4 w-4 mr-1" />
+          )}
+          Ban User
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2" data-ocid="sellers.bans.loading_state">
+          {[1, 2].map((k) => (
+            <Skeleton key={k} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : !bans?.length ? (
+        <p
+          className="text-sm text-muted-foreground"
+          data-ocid="sellers.bans.empty_state"
+        >
+          No users are currently banned from this shop.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {bans.map((principal, i) => (
+            <div
+              key={principal.toString()}
+              className="flex items-center justify-between p-2.5 border border-destructive/20 rounded-lg bg-destructive/5"
+              data-ocid={`sellers.bans.item.${i + 1}`}
+            >
+              <span className="font-mono text-xs text-foreground">
+                {truncatePrincipal(principal)}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  unbanUser
+                    .mutateAsync({ shopId, principal })
+                    .then(() => toast.success("User unbanned"))
+                    .catch(() => toast.error("Failed to unban"))
+                }
+                disabled={unbanUser.isPending}
+                data-ocid={`sellers.bans.delete_button.${i + 1}`}
+              >
+                Unban
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ShopEditor({ shopId }: { shopId: bigint }) {
   const { data: shops } = useAllShops();
   const updateShop = useUpdateShop();
@@ -701,6 +948,10 @@ function ShopEditor({ shopId }: { shopId: bigint }) {
       <ShopListings shopId={shopId} />
       <Separator className="mt-6" />
       <DownloadRequestsPanel shopId={shopId} />
+      <Separator className="mt-6" />
+      <AlertsPanel shopId={shopId} />
+      <Separator className="mt-6" />
+      <BanManagementPanel shopId={shopId} />
     </div>
   );
 }
@@ -748,7 +999,6 @@ function CreateShopForm({ defaultNsfw = false }: { defaultNsfw?: boolean }) {
         isNsfw,
         categories,
       });
-      // update with logo if provided
       if (logoBlob || bannerBlob) {
         await updateShop.mutateAsync({
           shopId,
@@ -978,7 +1228,11 @@ function DownloadRequestsPanel({ shopId }: { shopId: bigint }) {
                 {truncatePrincipal(req.requester)}
               </p>
               <span
-                className={`text-xs font-medium ${req.status === "approved" ? "text-green-500" : "text-destructive"}`}
+                className={`text-xs font-medium ${
+                  req.status === "approved"
+                    ? "text-green-500"
+                    : "text-destructive"
+                }`}
               >
                 {req.status === "approved" ? "Approved" : "Rejected"}
               </span>

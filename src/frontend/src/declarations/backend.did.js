@@ -29,8 +29,8 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
-export const CategoryId = IDL.Nat;
 export const GroupId = IDL.Nat;
+export const CategoryId = IDL.Nat;
 export const ChannelId = IDL.Nat;
 export const ListingId = IDL.Nat;
 export const ThreadId = IDL.Nat;
@@ -55,8 +55,10 @@ export const Group = IDL.Record({
   'owner' : IDL.Principal,
   'name' : IDL.Text,
   'description' : IDL.Text,
+  'isNsfw' : IDL.Bool,
   'iconBlob' : IDL.Opt(ExternalBlob),
   'timestamp' : IDL.Int,
+  'category' : IDL.Text,
 });
 export const ShopCategory = IDL.Record({
   'id' : IDL.Nat,
@@ -150,6 +152,37 @@ export const ShopProduct = IDL.Record({
   'price' : IDL.Nat,
   'isDigital' : IDL.Bool,
 });
+export const PurchaseRecord = IDL.Record({
+  'id' : IDL.Nat,
+  'shopId' : ShopId,
+  'productTitle' : IDL.Text,
+  'productId' : ShopProductId,
+  'currency' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'buyer' : IDL.Principal,
+  'price' : IDL.Nat,
+});
+export const ShopReview = IDL.Record({
+  'id' : IDL.Nat,
+  'shopId' : ShopId,
+  'comment' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'rating' : IDL.Nat,
+  'reviewer' : IDL.Principal,
+});
+export const SellerAlert = IDL.Record({
+  'id' : IDL.Nat,
+  'alertType' : IDL.Variant({
+    'downloadRequest' : IDL.Null,
+    'purchase' : IDL.Null,
+  }),
+  'shopId' : ShopId,
+  'isRead' : IDL.Bool,
+  'message' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'buyerPrincipal' : IDL.Principal,
+  'relatedId' : IDL.Nat,
+});
 export const ShopQuestion = IDL.Record({
   'id' : IDL.Nat,
   'asker' : IDL.Principal,
@@ -227,15 +260,18 @@ export const idlService = IDL.Service({
       [ShopProductId],
       [],
     ),
+  'addShopReview' : IDL.Func([ShopId, IDL.Nat, IDL.Text], [IDL.Nat], []),
   'answerShopQuestion' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'approveDownload' : IDL.Func([IDL.Nat], [], []),
   'askShopQuestion' : IDL.Func([ShopId, IDL.Text], [IDL.Nat], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'banUserFromGroup' : IDL.Func([GroupId, IDL.Principal], [], []),
+  'banUserFromShop' : IDL.Func([ShopId, IDL.Principal], [], []),
   'claimFirstAdmin' : IDL.Func([], [IDL.Bool], []),
   'clearCart' : IDL.Func([], [], []),
   'createCategory' : IDL.Func([IDL.Text, IDL.Text], [CategoryId], []),
   'createGroup' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+      [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
       [GroupId],
       [],
     ),
@@ -272,6 +308,7 @@ export const idlService = IDL.Service({
   'deleteShop' : IDL.Func([ShopId], [], []),
   'deleteShopCategory' : IDL.Func([IDL.Nat], [], []),
   'deleteShopProduct' : IDL.Func([ShopProductId], [], []),
+  'dismissAlert' : IDL.Func([IDL.Nat], [], []),
   'getAllActiveListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
   'getAllCategories' : IDL.Func([], [IDL.Vec(ForumCategory)], ['query']),
   'getAllGroups' : IDL.Func([], [IDL.Vec(Group)], ['query']),
@@ -306,6 +343,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getGroup' : IDL.Func([GroupId], [IDL.Opt(Group)], ['query']),
+  'getGroupBans' : IDL.Func([GroupId], [IDL.Vec(IDL.Principal)], ['query']),
   'getGroupChannels' : IDL.Func([GroupId], [IDL.Vec(GroupChannel)], ['query']),
   'getGroupMembers' : IDL.Func([GroupId], [IDL.Vec(IDL.Principal)], ['query']),
   'getGroupMessages' : IDL.Func(
@@ -319,14 +357,21 @@ export const idlService = IDL.Service({
       [IDL.Vec(IDL.Tuple(DownloadRequest, IDL.Opt(ShopProduct)))],
       ['query'],
     ),
+  'getMyPurchases' : IDL.Func([], [IDL.Vec(PurchaseRecord)], ['query']),
+  'getMyReviews' : IDL.Func([], [IDL.Vec(ShopReview)], ['query']),
+  'getMyShopReview' : IDL.Func([ShopId], [IDL.Opt(ShopReview)], ['query']),
   'getPublicUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
+  'getSellerAlerts' : IDL.Func([ShopId], [IDL.Vec(SellerAlert)], ['query']),
   'getShop' : IDL.Func([ShopId], [IDL.Opt(Shop)], ['query']),
+  'getShopBans' : IDL.Func([ShopId], [IDL.Vec(IDL.Principal)], ['query']),
   'getShopProducts' : IDL.Func([ShopId], [IDL.Vec(ShopProduct)], ['query']),
+  'getShopPurchases' : IDL.Func([ShopId], [IDL.Vec(PurchaseRecord)], ['query']),
   'getShopQuestions' : IDL.Func([ShopId], [IDL.Vec(ShopQuestion)], ['query']),
+  'getShopReviews' : IDL.Func([ShopId], [IDL.Vec(ShopReview)], ['query']),
   'getShopsByOwner' : IDL.Func([IDL.Principal], [IDL.Vec(Shop)], ['query']),
   'getThreadWithReplies' : IDL.Func(
       [ThreadId],
@@ -346,11 +391,24 @@ export const idlService = IDL.Service({
   'getVideo' : IDL.Func([VideoId], [IDL.Opt(Video)], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerCreatorOrAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isUserBannedFromGroup' : IDL.Func(
+      [GroupId, IDL.Principal],
+      [IDL.Bool],
+      ['query'],
+    ),
+  'isUserBannedFromShop' : IDL.Func(
+      [ShopId, IDL.Principal],
+      [IDL.Bool],
+      ['query'],
+    ),
   'joinGroup' : IDL.Func([GroupId], [], []),
   'leaveGroup' : IDL.Func([GroupId], [], []),
   'likeVideo' : IDL.Func([VideoId], [], []),
+  'markAlertRead' : IDL.Func([IDL.Nat], [], []),
+  'markAllAlertsRead' : IDL.Func([ShopId], [], []),
   'markAsSold' : IDL.Func([ListingId], [], []),
   'postGroupMessage' : IDL.Func([ChannelId, IDL.Text], [GroupMessageId], []),
+  'recordPurchase' : IDL.Func([ShopProductId], [IDL.Nat], []),
   'registerCallerAsUser' : IDL.Func([], [], []),
   'rejectDownload' : IDL.Func([IDL.Nat], [], []),
   'removeCartProduct' : IDL.Func([IDL.Nat], [], []),
@@ -359,6 +417,13 @@ export const idlService = IDL.Service({
   'requestDownload' : IDL.Func([ShopProductId], [IDL.Nat], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setCreatorStatus' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
+  'unbanUserFromGroup' : IDL.Func([GroupId, IDL.Principal], [], []),
+  'unbanUserFromShop' : IDL.Func([ShopId, IDL.Principal], [], []),
+  'updateGroup' : IDL.Func(
+      [GroupId, IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
+      [],
+      [],
+    ),
   'updateShop' : IDL.Func(
       [
         ShopId,
@@ -418,8 +483,8 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const CategoryId = IDL.Nat;
   const GroupId = IDL.Nat;
+  const CategoryId = IDL.Nat;
   const ChannelId = IDL.Nat;
   const ListingId = IDL.Nat;
   const ThreadId = IDL.Nat;
@@ -444,8 +509,10 @@ export const idlFactory = ({ IDL }) => {
     'owner' : IDL.Principal,
     'name' : IDL.Text,
     'description' : IDL.Text,
+    'isNsfw' : IDL.Bool,
     'iconBlob' : IDL.Opt(ExternalBlob),
     'timestamp' : IDL.Int,
+    'category' : IDL.Text,
   });
   const ShopCategory = IDL.Record({
     'id' : IDL.Nat,
@@ -539,6 +606,37 @@ export const idlFactory = ({ IDL }) => {
     'price' : IDL.Nat,
     'isDigital' : IDL.Bool,
   });
+  const PurchaseRecord = IDL.Record({
+    'id' : IDL.Nat,
+    'shopId' : ShopId,
+    'productTitle' : IDL.Text,
+    'productId' : ShopProductId,
+    'currency' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'buyer' : IDL.Principal,
+    'price' : IDL.Nat,
+  });
+  const ShopReview = IDL.Record({
+    'id' : IDL.Nat,
+    'shopId' : ShopId,
+    'comment' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'rating' : IDL.Nat,
+    'reviewer' : IDL.Principal,
+  });
+  const SellerAlert = IDL.Record({
+    'id' : IDL.Nat,
+    'alertType' : IDL.Variant({
+      'downloadRequest' : IDL.Null,
+      'purchase' : IDL.Null,
+    }),
+    'shopId' : ShopId,
+    'isRead' : IDL.Bool,
+    'message' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'buyerPrincipal' : IDL.Principal,
+    'relatedId' : IDL.Nat,
+  });
   const ShopQuestion = IDL.Record({
     'id' : IDL.Nat,
     'asker' : IDL.Principal,
@@ -616,15 +714,18 @@ export const idlFactory = ({ IDL }) => {
         [ShopProductId],
         [],
       ),
+    'addShopReview' : IDL.Func([ShopId, IDL.Nat, IDL.Text], [IDL.Nat], []),
     'answerShopQuestion' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'approveDownload' : IDL.Func([IDL.Nat], [], []),
     'askShopQuestion' : IDL.Func([ShopId, IDL.Text], [IDL.Nat], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'banUserFromGroup' : IDL.Func([GroupId, IDL.Principal], [], []),
+    'banUserFromShop' : IDL.Func([ShopId, IDL.Principal], [], []),
     'claimFirstAdmin' : IDL.Func([], [IDL.Bool], []),
     'clearCart' : IDL.Func([], [], []),
     'createCategory' : IDL.Func([IDL.Text, IDL.Text], [CategoryId], []),
     'createGroup' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+        [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
         [GroupId],
         [],
       ),
@@ -661,6 +762,7 @@ export const idlFactory = ({ IDL }) => {
     'deleteShop' : IDL.Func([ShopId], [], []),
     'deleteShopCategory' : IDL.Func([IDL.Nat], [], []),
     'deleteShopProduct' : IDL.Func([ShopProductId], [], []),
+    'dismissAlert' : IDL.Func([IDL.Nat], [], []),
     'getAllActiveListings' : IDL.Func([], [IDL.Vec(Listing)], ['query']),
     'getAllCategories' : IDL.Func([], [IDL.Vec(ForumCategory)], ['query']),
     'getAllGroups' : IDL.Func([], [IDL.Vec(Group)], ['query']),
@@ -695,6 +797,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getGroup' : IDL.Func([GroupId], [IDL.Opt(Group)], ['query']),
+    'getGroupBans' : IDL.Func([GroupId], [IDL.Vec(IDL.Principal)], ['query']),
     'getGroupChannels' : IDL.Func(
         [GroupId],
         [IDL.Vec(GroupChannel)],
@@ -716,14 +819,25 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(DownloadRequest, IDL.Opt(ShopProduct)))],
         ['query'],
       ),
+    'getMyPurchases' : IDL.Func([], [IDL.Vec(PurchaseRecord)], ['query']),
+    'getMyReviews' : IDL.Func([], [IDL.Vec(ShopReview)], ['query']),
+    'getMyShopReview' : IDL.Func([ShopId], [IDL.Opt(ShopReview)], ['query']),
     'getPublicUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'getSellerAlerts' : IDL.Func([ShopId], [IDL.Vec(SellerAlert)], ['query']),
     'getShop' : IDL.Func([ShopId], [IDL.Opt(Shop)], ['query']),
+    'getShopBans' : IDL.Func([ShopId], [IDL.Vec(IDL.Principal)], ['query']),
     'getShopProducts' : IDL.Func([ShopId], [IDL.Vec(ShopProduct)], ['query']),
+    'getShopPurchases' : IDL.Func(
+        [ShopId],
+        [IDL.Vec(PurchaseRecord)],
+        ['query'],
+      ),
     'getShopQuestions' : IDL.Func([ShopId], [IDL.Vec(ShopQuestion)], ['query']),
+    'getShopReviews' : IDL.Func([ShopId], [IDL.Vec(ShopReview)], ['query']),
     'getShopsByOwner' : IDL.Func([IDL.Principal], [IDL.Vec(Shop)], ['query']),
     'getThreadWithReplies' : IDL.Func(
         [ThreadId],
@@ -743,11 +857,24 @@ export const idlFactory = ({ IDL }) => {
     'getVideo' : IDL.Func([VideoId], [IDL.Opt(Video)], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerCreatorOrAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isUserBannedFromGroup' : IDL.Func(
+        [GroupId, IDL.Principal],
+        [IDL.Bool],
+        ['query'],
+      ),
+    'isUserBannedFromShop' : IDL.Func(
+        [ShopId, IDL.Principal],
+        [IDL.Bool],
+        ['query'],
+      ),
     'joinGroup' : IDL.Func([GroupId], [], []),
     'leaveGroup' : IDL.Func([GroupId], [], []),
     'likeVideo' : IDL.Func([VideoId], [], []),
+    'markAlertRead' : IDL.Func([IDL.Nat], [], []),
+    'markAllAlertsRead' : IDL.Func([ShopId], [], []),
     'markAsSold' : IDL.Func([ListingId], [], []),
     'postGroupMessage' : IDL.Func([ChannelId, IDL.Text], [GroupMessageId], []),
+    'recordPurchase' : IDL.Func([ShopProductId], [IDL.Nat], []),
     'registerCallerAsUser' : IDL.Func([], [], []),
     'rejectDownload' : IDL.Func([IDL.Nat], [], []),
     'removeCartProduct' : IDL.Func([IDL.Nat], [], []),
@@ -756,6 +883,20 @@ export const idlFactory = ({ IDL }) => {
     'requestDownload' : IDL.Func([ShopProductId], [IDL.Nat], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setCreatorStatus' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
+    'unbanUserFromGroup' : IDL.Func([GroupId, IDL.Principal], [], []),
+    'unbanUserFromShop' : IDL.Func([ShopId, IDL.Principal], [], []),
+    'updateGroup' : IDL.Func(
+        [
+          GroupId,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(ExternalBlob),
+          IDL.Bool,
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
     'updateShop' : IDL.Func(
         [
           ShopId,

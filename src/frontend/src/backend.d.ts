@@ -43,8 +43,10 @@ export interface Group {
     owner: Principal;
     name: string;
     description: string;
+    isNsfw: boolean;
     iconBlob?: ExternalBlob;
     timestamp: bigint;
+    category: string;
 }
 export type GroupId = bigint;
 export interface ThreadReply {
@@ -76,6 +78,14 @@ export interface GroupChannel {
     name: string;
     description: string;
     groupId: GroupId;
+}
+export interface ShopReview {
+    id: bigint;
+    shopId: ShopId;
+    comment: string;
+    timestamp: bigint;
+    rating: bigint;
+    reviewer: Principal;
 }
 export type VideoId = bigint;
 export interface ShopCategory {
@@ -143,6 +153,16 @@ export interface ForumThread {
     timestamp: bigint;
 }
 export type ThreadId = bigint;
+export interface SellerAlert {
+    id: bigint;
+    alertType: Variant_downloadRequest_purchase;
+    shopId: ShopId;
+    isRead: boolean;
+    message: string;
+    timestamp: bigint;
+    buyerPrincipal: Principal;
+    relatedId: bigint;
+}
 export interface ShopProduct {
     id: ShopProductId;
     title: string;
@@ -158,6 +178,16 @@ export interface ShopProduct {
     price: bigint;
     isDigital: boolean;
 }
+export interface PurchaseRecord {
+    id: bigint;
+    shopId: ShopId;
+    productTitle: string;
+    productId: ShopProductId;
+    currency: string;
+    timestamp: bigint;
+    buyer: Principal;
+    price: bigint;
+}
 export type CategoryId = bigint;
 export interface UserProfile {
     bio: string;
@@ -169,6 +199,10 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+export enum Variant_downloadRequest_purchase {
+    downloadRequest = "downloadRequest",
+    purchase = "purchase"
+}
 export enum Variant_pending_approved_rejected {
     pending = "pending",
     approved = "approved",
@@ -178,14 +212,18 @@ export interface backendInterface {
     addCartProduct(productId: bigint): Promise<void>;
     addComment(videoId: VideoId, text: string): Promise<CommentId>;
     addShopProduct(shopId: ShopId, title: string, description: string, price: bigint, currency: string, imageBlobs: Array<ExternalBlob>, paymentLink: string, stock: bigint, isDigital: boolean, category: string, digitalFileBlob: ExternalBlob | null): Promise<ShopProductId>;
+    addShopReview(shopId: ShopId, rating: bigint, comment: string): Promise<bigint>;
     answerShopQuestion(questionId: bigint, answer: string): Promise<void>;
     approveDownload(requestId: bigint): Promise<void>;
     askShopQuestion(shopId: ShopId, question: string): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    banUserFromGroup(groupId: GroupId, user: Principal): Promise<void>;
+    banUserFromShop(shopId: ShopId, user: Principal): Promise<void>;
     claimFirstAdmin(): Promise<boolean>;
+    hasAdminBeenClaimed(): Promise<boolean>;
     clearCart(): Promise<void>;
     createCategory(name: string, description: string): Promise<CategoryId>;
-    createGroup(name: string, description: string, iconBlob: ExternalBlob | null): Promise<GroupId>;
+    createGroup(name: string, description: string, iconBlob: ExternalBlob | null, isNsfw: boolean, category: string): Promise<GroupId>;
     createGroupChannel(groupId: GroupId, name: string, description: string): Promise<ChannelId>;
     createListing(title: string, description: string, price: bigint, image: ExternalBlob): Promise<ListingId>;
     createShop(name: string, description: string, rules: string, contactInfo: string, isNsfw: boolean, _shopCategories: Array<string>, bannerBlob: ExternalBlob | null): Promise<ShopId>;
@@ -195,6 +233,7 @@ export interface backendInterface {
     deleteShop(shopId: ShopId): Promise<void>;
     deleteShopCategory(id: bigint): Promise<void>;
     deleteShopProduct(productId: ShopProductId): Promise<void>;
+    dismissAlert(alertId: bigint): Promise<void>;
     getAllActiveListings(): Promise<Array<Listing>>;
     getAllCategories(): Promise<Array<ForumCategory>>;
     getAllGroups(): Promise<Array<Group>>;
@@ -219,15 +258,23 @@ export interface backendInterface {
     }>;
     getDownloadRequests(shopId: ShopId): Promise<Array<DownloadRequest>>;
     getGroup(id: GroupId): Promise<Group | null>;
+    getGroupBans(groupId: GroupId): Promise<Array<Principal>>;
     getGroupChannels(groupId: GroupId): Promise<Array<GroupChannel>>;
     getGroupMembers(groupId: GroupId): Promise<Array<Principal>>;
     getGroupMessages(channelId: ChannelId): Promise<Array<GroupMessage>>;
     getListing(id: ListingId): Promise<Listing | null>;
     getMyDownloadRequests(): Promise<Array<[DownloadRequest, ShopProduct | null]>>;
+    getMyPurchases(): Promise<Array<PurchaseRecord>>;
+    getMyReviews(): Promise<Array<ShopReview>>;
+    getMyShopReview(shopId: ShopId): Promise<ShopReview | null>;
     getPublicUserProfile(user: Principal): Promise<UserProfile | null>;
+    getSellerAlerts(shopId: ShopId): Promise<Array<SellerAlert>>;
     getShop(id: ShopId): Promise<Shop | null>;
+    getShopBans(shopId: ShopId): Promise<Array<Principal>>;
     getShopProducts(shopId: ShopId): Promise<Array<ShopProduct>>;
+    getShopPurchases(shopId: ShopId): Promise<Array<PurchaseRecord>>;
     getShopQuestions(shopId: ShopId): Promise<Array<ShopQuestion>>;
+    getShopReviews(shopId: ShopId): Promise<Array<ShopReview>>;
     getShopsByOwner(owner: Principal): Promise<Array<Shop>>;
     getThreadWithReplies(threadId: ThreadId): Promise<ThreadWithReplies | null>;
     getThreadsInCategory(categoryId: CategoryId): Promise<Array<ForumThread>>;
@@ -235,11 +282,16 @@ export interface backendInterface {
     getVideo(id: VideoId): Promise<Video | null>;
     isCallerAdmin(): Promise<boolean>;
     isCallerCreatorOrAdmin(): Promise<boolean>;
+    isUserBannedFromGroup(groupId: GroupId, user: Principal): Promise<boolean>;
+    isUserBannedFromShop(shopId: ShopId, user: Principal): Promise<boolean>;
     joinGroup(groupId: GroupId): Promise<void>;
     leaveGroup(groupId: GroupId): Promise<void>;
     likeVideo(id: VideoId): Promise<void>;
+    markAlertRead(alertId: bigint): Promise<void>;
+    markAllAlertsRead(shopId: ShopId): Promise<void>;
     markAsSold(id: ListingId): Promise<void>;
     postGroupMessage(channelId: ChannelId, text: string): Promise<GroupMessageId>;
+    recordPurchase(productId: ShopProductId): Promise<bigint>;
     registerCallerAsUser(): Promise<void>;
     rejectDownload(requestId: bigint): Promise<void>;
     removeCartProduct(productId: bigint): Promise<void>;
@@ -248,6 +300,9 @@ export interface backendInterface {
     requestDownload(productId: ShopProductId): Promise<bigint>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setCreatorStatus(user: Principal, status: boolean): Promise<void>;
+    unbanUserFromGroup(groupId: GroupId, user: Principal): Promise<void>;
+    unbanUserFromShop(shopId: ShopId, user: Principal): Promise<void>;
+    updateGroup(groupId: GroupId, name: string, description: string, iconBlob: ExternalBlob | null, isNsfw: boolean, category: string): Promise<void>;
     updateShop(shopId: ShopId, name: string, description: string, rules: string, contactInfo: string, bannerBlob: ExternalBlob | null, logoBlob: ExternalBlob | null, isNsfw: boolean, categories: Array<string>): Promise<void>;
     updateShopCategory(id: bigint, name: string): Promise<void>;
     updateShopProduct(productId: ShopProductId, title: string, description: string, price: bigint, currency: string, imageBlobs: Array<ExternalBlob>, paymentLink: string, stock: bigint, isDigital: boolean, category: string, digitalFileBlob: ExternalBlob | null): Promise<void>;

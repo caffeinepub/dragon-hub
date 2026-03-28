@@ -10,7 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -144,7 +146,7 @@ export function ShopsPage() {
     () => sessionStorage.getItem(NSFW_CONSENT_KEY) === "true",
   );
   const [showAgeGate, setShowAgeGate] = useState(false);
-  const [nsfwExpanded, setNsfwExpanded] = useState(false);
+  const [showNsfw, setShowNsfw] = useState(false);
 
   const { safeShops, nsfwShops } = useMemo(() => {
     const q = search.toLowerCase();
@@ -160,6 +162,9 @@ export function ShopsPage() {
       nsfwShops: filtered.filter((s) => s.isNsfw),
     };
   }, [shops, search]);
+
+  const visibleShops =
+    showNsfw && nsfwConsent ? [...safeShops, ...nsfwShops] : safeShops;
 
   const handleDeleteShop = async (shopId: bigint, shopName: string) => {
     if (!confirm(`Delete "${shopName}"? This cannot be undone.`)) return;
@@ -177,43 +182,21 @@ export function ShopsPage() {
   const handleNsfwProceed = () => {
     sessionStorage.setItem(NSFW_CONSENT_KEY, "true");
     setNsfwConsent(true);
-    setNsfwExpanded(true);
+    setShowNsfw(true);
     setShowAgeGate(false);
   };
 
-  const handleViewNsfw = () => {
-    if (nsfwConsent) {
-      setNsfwExpanded((v) => !v);
+  const handleNsfwToggle = (checked: boolean) => {
+    if (checked) {
+      if (nsfwConsent) {
+        setShowNsfw(true);
+      } else {
+        setShowAgeGate(true);
+      }
     } else {
-      setShowAgeGate(true);
+      setShowNsfw(false);
     }
   };
-
-  const ShopsGrid = ({
-    items,
-    startIndex,
-  }: { items: Shop[]; startIndex: number }) => (
-    <motion.div
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-      initial="hidden"
-      animate="visible"
-      variants={{
-        visible: { transition: { staggerChildren: 0.06 } },
-        hidden: {},
-      }}
-    >
-      {items.map((shop, i) => (
-        <ShopCard
-          key={shop.id.toString()}
-          shop={shop}
-          index={startIndex + i}
-          isAdmin={!!isAdmin}
-          onDelete={handleDeleteShop}
-          deleting={deletingId === shop.id}
-        />
-      ))}
-    </motion.div>
-  );
 
   return (
     <main className="container mx-auto px-4 py-10">
@@ -233,17 +216,48 @@ export function ShopsPage() {
         </Link>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-8">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search shops by name, description or category..."
-          className="pl-10"
-          data-ocid="shops.search.input"
-        />
+      {/* Search + NSFW toggle row */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search shops by name, description or category..."
+            className="pl-10"
+            data-ocid="shops.search.input"
+          />
+        </div>
+        {nsfwShops.length > 0 && (
+          <div
+            className="flex items-center gap-3 px-4 py-2 rounded-lg border border-destructive/30 bg-destructive/5 flex-shrink-0"
+            data-ocid="shops.nsfw.panel"
+          >
+            <EyeOff className="h-4 w-4 text-destructive flex-shrink-0" />
+            <Label
+              htmlFor="nsfw-toggle"
+              className="text-sm font-medium text-destructive cursor-pointer select-none whitespace-nowrap"
+            >
+              Show NSFW Shops
+            </Label>
+            <Switch
+              id="nsfw-toggle"
+              checked={showNsfw && nsfwConsent}
+              onCheckedChange={handleNsfwToggle}
+              data-ocid="shops.nsfw.toggle"
+            />
+          </div>
+        )}
       </div>
+
+      {showNsfw && nsfwConsent && nsfwShops.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <span className="text-sm text-destructive font-medium">
+            Showing adult content — confirmed 18+
+          </span>
+        </div>
+      )}
 
       {/* Loading */}
       {isLoading ? (
@@ -261,7 +275,7 @@ export function ShopsPage() {
             </Card>
           ))}
         </div>
-      ) : safeShops.length === 0 && nsfwShops.length === 0 ? (
+      ) : visibleShops.length === 0 && safeShops.length === 0 ? (
         <div className="text-center py-20" data-ocid="shops.empty_state">
           <Store className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
           <h3 className="font-display text-xl font-semibold mb-2">
@@ -273,70 +287,37 @@ export function ShopsPage() {
               : "Be the first to open a shop on Dragon Hub!"}
           </p>
         </div>
+      ) : visibleShops.length === 0 ? (
+        <div className="text-center py-20" data-ocid="shops.empty_state">
+          <Store className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+          <h3 className="font-display text-xl font-semibold mb-2">
+            No matching shops
+          </h3>
+          <p className="text-muted-foreground">
+            Try adjusting your search or filters.
+          </p>
+        </div>
       ) : (
-        <>
-          {/* Safe shops */}
-          {safeShops.length > 0 && (
-            <section className="mb-12">
-              {nsfwShops.length > 0 && (
-                <h2 className="font-display text-xl font-semibold mb-4 flex items-center gap-2">
-                  <Store className="h-5 w-5 text-accent" /> All Ages
-                </h2>
-              )}
-              <ShopsGrid items={safeShops} startIndex={0} />
-            </section>
-          )}
-
-          {/* NSFW section */}
-          {nsfwShops.length > 0 && (
-            <section data-ocid="shops.nsfw.panel">
-              <div className="flex items-center gap-3 mb-4 p-4 rounded-xl bg-destructive/5 border border-destructive/20">
-                <EyeOff className="h-5 w-5 text-destructive" />
-                <div className="flex-1">
-                  <h2 className="font-display text-xl font-semibold text-destructive">
-                    NSFW Shops
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {nsfwShops.length} shop{nsfwShops.length !== 1 ? "s" : ""} —
-                    Adult content, 18+ only
-                  </p>
-                </div>
-                <Button
-                  variant={
-                    nsfwExpanded && nsfwConsent ? "destructive" : "outline"
-                  }
-                  size="sm"
-                  onClick={handleViewNsfw}
-                  className={
-                    nsfwExpanded && nsfwConsent
-                      ? ""
-                      : "border-destructive/40 text-destructive hover:bg-destructive/10"
-                  }
-                  data-ocid="shops.nsfw.toggle"
-                >
-                  <AlertTriangle className="h-4 w-4 mr-1" />
-                  {nsfwExpanded && nsfwConsent
-                    ? "Hide"
-                    : "View NSFW Content (18+)"}
-                </Button>
-              </div>
-              {nsfwExpanded && nsfwConsent && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <div className="mb-3 flex items-center gap-2 p-2 rounded-lg bg-destructive/10">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="text-sm text-destructive font-medium">
-                      Adult content — viewers confirmed 18+
-                    </span>
-                  </div>
-                  <ShopsGrid items={nsfwShops} startIndex={safeShops.length} />
-                </motion.div>
-              )}
-            </section>
-          )}
-        </>
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: { transition: { staggerChildren: 0.06 } },
+            hidden: {},
+          }}
+        >
+          {visibleShops.map((shop, i) => (
+            <ShopCard
+              key={shop.id.toString()}
+              shop={shop}
+              index={i}
+              isAdmin={!!isAdmin}
+              onDelete={handleDeleteShop}
+              deleting={deletingId === shop.id}
+            />
+          ))}
+        </motion.div>
       )}
 
       {/* Age gate dialog */}
@@ -356,8 +337,8 @@ export function ShopsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-2 text-sm text-muted-foreground">
-            By clicking &quot;I am 18+ — Proceed&quot;, you confirm that you are
-            at least 18 years old and consent to viewing adult content.
+            By clicking &quot;I am 18+ &mdash; Proceed&quot;, you confirm that
+            you are at least 18 years old and consent to viewing adult content.
           </div>
           <DialogFooter className="flex gap-2 sm:gap-2">
             <Button
@@ -373,7 +354,7 @@ export function ShopsPage() {
               className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-ocid="shops.age_gate.confirm_button"
             >
-              I am 18+ — Proceed
+              I am 18+ &mdash; Proceed
             </Button>
           </DialogFooter>
         </DialogContent>

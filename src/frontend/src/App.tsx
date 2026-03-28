@@ -9,9 +9,11 @@ import {
 import { Footer } from "./components/Footer";
 import { Navbar } from "./components/Navbar";
 import { AdminPage } from "./pages/AdminPage";
+import { BuyerPage } from "./pages/BuyerPage";
 import { CategoryPage } from "./pages/CategoryPage";
 import { ForumsPage } from "./pages/ForumsPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
+import { GroupsManagePage } from "./pages/GroupsManagePage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { HomePage } from "./pages/HomePage";
 import { ListingDetailPage } from "./pages/ListingDetailPage";
@@ -99,6 +101,12 @@ const groupDetailRoute = createRoute({
   component: GroupDetailPage,
 });
 
+const groupsManageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/groups/manage",
+  component: GroupsManagePage,
+});
+
 const forumsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/forums",
@@ -129,6 +137,12 @@ const adminRoute = createRoute({
   component: AdminPage,
 });
 
+const buyerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/buyer",
+  component: BuyerPage,
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   videosRoute,
@@ -140,11 +154,13 @@ const routeTree = rootRoute.addChildren([
   shopDetailRoute,
   groupsRoute,
   groupDetailRoute,
+  groupsManageRoute,
   forumsRoute,
   categoryRoute,
   threadRoute,
   profileRoute,
   adminRoute,
+  buyerRoute,
 ]);
 
 const router = createRouter({ routeTree });

@@ -665,14 +665,36 @@ export function useCreateGroup() {
       name,
       description,
       iconFile,
-    }: { name: string; description: string; iconFile: File | null }) => {
+      bannerFile,
+      isNsfw,
+      category,
+    }: {
+      name: string;
+      description: string;
+      iconFile: File | null;
+      bannerFile?: File | null;
+      isNsfw: boolean;
+      category: string;
+    }) => {
       if (!actor) throw new Error("Not connected");
       let iconBlob: ExternalBlob | null = null;
       if (iconFile) {
         const bytes = new Uint8Array(await iconFile.arrayBuffer());
         iconBlob = ExternalBlob.fromBytes(bytes);
       }
-      return (actor as any).createGroup(name, description, iconBlob);
+      let bannerBlob: ExternalBlob | null = null;
+      if (bannerFile) {
+        const bytes = new Uint8Array(await bannerFile.arrayBuffer());
+        bannerBlob = ExternalBlob.fromBytes(bytes);
+      }
+      return (actor as any).createGroup(
+        name,
+        description,
+        iconBlob,
+        bannerBlob,
+        isNsfw,
+        category,
+      );
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["groups"] }),
   });
@@ -728,14 +750,90 @@ export function usePostGroupMessage() {
     mutationFn: async ({
       channelId,
       text,
-    }: { channelId: bigint; text: string }) => {
+      mediaFile,
+      mediaType,
+      mediaUrl,
+    }: {
+      channelId: bigint;
+      text: string;
+      mediaFile?: File | null;
+      mediaType?: string | null;
+      mediaUrl?: string | null;
+    }) => {
       if (!actor) throw new Error("Not connected");
-      return (actor as any).postGroupMessage(channelId, text);
+      let mediaBlob: ExternalBlob | null = null;
+      if (mediaFile) {
+        const bytes = new Uint8Array(await mediaFile.arrayBuffer());
+        mediaBlob = ExternalBlob.fromBytes(bytes);
+      }
+      const mediaBlobOpt = mediaBlob ? [mediaBlob] : [];
+      const mediaTypeOpt = mediaType ? [mediaType] : [];
+      const mediaUrlOpt = mediaUrl ? [mediaUrl] : [];
+      return (actor as any).postGroupMessage(
+        channelId,
+        text,
+        mediaBlobOpt,
+        mediaTypeOpt,
+        mediaUrlOpt,
+      );
     },
     onSuccess: (_data, { channelId }) =>
       qc.invalidateQueries({
         queryKey: ["groupMessages", channelId.toString()],
       }),
+  });
+}
+
+export function useSetChannelPermissions() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      channelId,
+      restricted,
+      allowedMembers,
+    }: {
+      channelId: bigint;
+      restricted: boolean;
+      allowedMembers: string[];
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      const principals = allowedMembers.map((p) => PrincipalClass.fromText(p));
+      return (actor as any).setChannelPermissions(
+        channelId,
+        restricted,
+        principals,
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groupChannels"] });
+    },
+  });
+}
+
+export function useDeleteGroupMessage() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ messageId }: { messageId: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).deleteGroupMessage(messageId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groupMessages"] });
+    },
+  });
+}
+
+export function useAllDeletedGroupMessages() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["deletedGroupMessages"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllDeletedGroupMessages();
+    },
+    enabled: !!actor && !isFetching,
   });
 }
 
@@ -973,5 +1071,375 @@ export function useRejectDownload() {
         queryKey: ["downloadRequests", shopId.toString()],
       });
     },
+  });
+}
+
+// ---- Shop reviews, bans, alerts, purchases ----
+
+export interface ShopReview {
+  id: bigint;
+  shopId: bigint;
+  reviewer: { toString(): string };
+  rating: bigint;
+  comment: string;
+  timestamp: bigint;
+}
+
+export interface PurchaseRecord {
+  id: bigint;
+  productId: bigint;
+  shopId: bigint;
+  buyer: { toString(): string };
+  productTitle: string;
+  price: bigint;
+  currency: string;
+  timestamp: bigint;
+}
+
+export interface SellerAlert {
+  id: bigint;
+  shopId: bigint;
+  alertType: { purchase: null } | { downloadRequest: null };
+  message: string;
+  buyerPrincipal: { toString(): string };
+  relatedId: bigint;
+  timestamp: bigint;
+  isRead: boolean;
+}
+
+export function useShopReviews(shopId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery<ShopReview[]>({
+    queryKey: ["shopReviews", shopId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return (await (actor as any).getShopReviews(shopId)) ?? [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useMyShopReview(shopId: bigint) {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<ShopReview | null>({
+    queryKey: [
+      "myShopReview",
+      shopId.toString(),
+      identity?.getPrincipal().toString(),
+    ],
+    queryFn: async () => {
+      if (!actor || !identity) return null;
+      try {
+        return (await (actor as any).getMyShopReview(shopId)) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
+export function useAddShopReview() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      shopId,
+      rating,
+      comment,
+    }: { shopId: bigint; rating: bigint; comment: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).addShopReview(shopId, rating, comment);
+    },
+    onSuccess: (_d: any, { shopId }: any) => {
+      qc.invalidateQueries({ queryKey: ["shopReviews", shopId.toString()] });
+      qc.invalidateQueries({ queryKey: ["myShopReview", shopId.toString()] });
+      qc.invalidateQueries({ queryKey: ["myReviews"] });
+    },
+  });
+}
+
+export function useIsUserBanned(
+  shopId: bigint,
+  user: { toString(): string } | null,
+) {
+  const { actor, isFetching } = useActor();
+  return useQuery<boolean>({
+    queryKey: ["isUserBanned", shopId.toString(), user?.toString()],
+    queryFn: async () => {
+      if (!actor || !user) return false;
+      try {
+        return (
+          (await (actor as any).isUserBannedFromShop(shopId, user)) ?? false
+        );
+      } catch {
+        return false;
+      }
+    },
+    enabled: !!actor && !isFetching && !!user,
+  });
+}
+
+export function useBanUser() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      shopId,
+      principalStr,
+    }: { shopId: bigint; principalStr: string }) => {
+      if (!actor) throw new Error("Not connected");
+      const principal = PrincipalClass.fromText(principalStr);
+      return (actor as any).banUserFromShop(shopId, principal);
+    },
+    onSuccess: (_d: any, { shopId }: any) => {
+      qc.invalidateQueries({ queryKey: ["shopBans", shopId.toString()] });
+    },
+  });
+}
+
+export function useUnbanUser() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      shopId,
+      principal,
+    }: { shopId: bigint; principal: { toString(): string } }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).unbanUserFromShop(shopId, principal);
+    },
+    onSuccess: (_d: any, { shopId }: any) => {
+      qc.invalidateQueries({ queryKey: ["shopBans", shopId.toString()] });
+    },
+  });
+}
+
+export function useShopBans(shopId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery<{ toString(): string }[]>({
+    queryKey: ["shopBans", shopId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return (await (actor as any).getShopBans(shopId)) ?? [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSellerAlerts(shopId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery<SellerAlert[]>({
+    queryKey: ["sellerAlerts", shopId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return (await (actor as any).getSellerAlerts(shopId)) ?? [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 15000,
+  });
+}
+
+export function useMarkAlertRead() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (alertId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).markAlertRead(alertId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sellerAlerts"] });
+    },
+  });
+}
+
+export function useDismissAlert() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (alertId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).dismissAlert(alertId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sellerAlerts"] });
+    },
+  });
+}
+
+export function useMarkAllAlertsRead() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (shopId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).markAllAlertsRead(shopId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sellerAlerts"] });
+    },
+  });
+}
+
+export function useMyPurchases() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<PurchaseRecord[]>({
+    queryKey: ["myPurchases", identity?.getPrincipal().toString()],
+    queryFn: async () => {
+      if (!actor || !identity) return [];
+      try {
+        return (await (actor as any).getMyPurchases()) ?? [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
+export function useMyReviews() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery<ShopReview[]>({
+    queryKey: ["myReviews", identity?.getPrincipal().toString()],
+    queryFn: async () => {
+      if (!actor || !identity) return [];
+      try {
+        return (await (actor as any).getMyReviews()) ?? [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
+export function useRecordPurchase() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (productId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      try {
+        return await (actor as any).recordPurchase(productId);
+      } catch {
+        return null;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myPurchases"] });
+    },
+  });
+}
+
+// ─── Group Ban & Edit hooks ────────────────────────────────────────────────
+
+export function useUpdateGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      name,
+      description,
+      iconFile,
+      bannerFile,
+      isNsfw,
+      category,
+    }: {
+      groupId: bigint;
+      name: string;
+      description: string;
+      iconFile: File | null;
+      bannerFile?: File | null;
+      isNsfw: boolean;
+      category: string;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      let iconBlob: ExternalBlob | null = null;
+      if (iconFile) {
+        const bytes = new Uint8Array(await iconFile.arrayBuffer());
+        iconBlob = ExternalBlob.fromBytes(bytes);
+      }
+      let bannerBlob: ExternalBlob | null = null;
+      if (bannerFile) {
+        const bytes = new Uint8Array(await bannerFile.arrayBuffer());
+        bannerBlob = ExternalBlob.fromBytes(bytes);
+      }
+      return (actor as any).updateGroup(
+        groupId,
+        name,
+        description,
+        iconBlob,
+        bannerBlob,
+        isNsfw,
+        category,
+      );
+    },
+    onSuccess: (_data, { groupId }) => {
+      qc.invalidateQueries({ queryKey: ["groups"] });
+      qc.invalidateQueries({ queryKey: ["group", groupId.toString()] });
+    },
+  });
+}
+
+export function useGroupBans(groupId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["groupBans", groupId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getGroupBans(groupId) as Promise<any[]>;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useBanUserFromGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      user,
+    }: { groupId: bigint; user: string }) => {
+      if (!actor) throw new Error("Not connected");
+      const principal = PrincipalClass.fromText(user);
+      return (actor as any).banUserFromGroup(groupId, principal);
+    },
+    onSuccess: (_data, { groupId }) =>
+      qc.invalidateQueries({ queryKey: ["groupBans", groupId.toString()] }),
+  });
+}
+
+export function useUnbanUserFromGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      user,
+    }: { groupId: bigint; user: string }) => {
+      if (!actor) throw new Error("Not connected");
+      const principal = PrincipalClass.fromText(user);
+      return (actor as any).unbanUserFromGroup(groupId, principal);
+    },
+    onSuccess: (_data, { groupId }) =>
+      qc.invalidateQueries({ queryKey: ["groupBans", groupId.toString()] }),
   });
 }

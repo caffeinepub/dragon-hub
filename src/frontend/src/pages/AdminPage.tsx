@@ -49,6 +49,7 @@ import { UserRole, type UserWithRole } from "../backend";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
+  useAllDeletedGroupMessages,
   useAllShopCategories,
   useCreateShopCategory,
   useDeleteShopCategory,
@@ -552,6 +553,19 @@ export function AdminPage() {
     enabled: !!actor && !isFetching && !!identity,
   });
 
+  const { data: adminClaimed } = useQuery({
+    queryKey: ["hasAdminBeenClaimed"],
+    queryFn: async () => {
+      if (!actor) return false;
+      try {
+        return await actor.hasAdminBeenClaimed();
+      } catch {
+        return false;
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+
   const {
     data: users,
     isLoading: usersLoading,
@@ -656,6 +670,7 @@ export function AdminPage() {
   }
 
   if (!isAdmin) {
+    const noAdminExists = adminClaimed === false;
     return (
       <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-10">
         <Card
@@ -670,12 +685,13 @@ export function AdminPage() {
               Access Denied
             </CardTitle>
             <CardDescription>
-              You don&apos;t have admin privileges yet. If you&apos;re the first
-              user, claim admin below.
+              {noAdminExists
+                ? "No admin has been set up yet. Claim admin access below."
+                : "You don’t have admin privileges. Ask an existing admin to promote you."}
             </CardDescription>
           </CardHeader>
         </Card>
-        {actor && (
+        {actor && (noAdminExists || adminClaimed === undefined) && (
           <ClaimAdminSection
             actor={actor}
             identity={identity}
@@ -890,6 +906,9 @@ export function AdminPage() {
         {/* ── SHOP CATEGORIES ── */}
         <ShopCategoriesCard />
 
+        {/* ── DELETED GROUP MESSAGES ── */}
+        <DeletedGroupMessagesCard />
+
         {/* Designated admins note */}
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
@@ -974,5 +993,112 @@ export function AdminPage() {
         </DialogContent>
       </Dialog>
     </main>
+  );
+}
+
+function DeletedGroupMessagesCard() {
+  const { data: msgs, isLoading } = useAllDeletedGroupMessages();
+
+  function shortP(p: string) {
+    if (!p || p.length <= 12) return p;
+    return `${p.slice(0, 6)}...${p.slice(-4)}`;
+  }
+
+  return (
+    <Card className="border-border bg-card shadow-lg">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10">
+            <Trash2 className="h-5 w-5 text-destructive" />
+          </div>
+          <div>
+            <CardTitle className="font-display text-lg text-foreground">
+              Deleted Group Messages
+            </CardTitle>
+            <CardDescription className="font-body text-xs">
+              Log of messages deleted by group owners
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <Separator />
+      <CardContent className="pt-5">
+        {isLoading ? (
+          <div
+            className="space-y-3"
+            data-ocid="admin.deleted_messages.loading_state"
+          >
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : !msgs || msgs.length === 0 ? (
+          <div
+            className="flex flex-col items-center gap-3 py-10 text-muted-foreground"
+            data-ocid="admin.deleted_messages.empty_state"
+          >
+            <Trash2 className="h-8 w-8 opacity-30" />
+            <p className="font-body text-sm">No deleted messages</p>
+          </div>
+        ) : (
+          <div
+            className="overflow-x-auto"
+            data-ocid="admin.deleted_messages.table"
+          >
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground font-semibold">
+                  <th className="text-left py-2 px-3">Message</th>
+                  <th className="text-left py-2 px-3">Author</th>
+                  <th className="text-left py-2 px-3">Deleted By</th>
+                  <th className="text-left py-2 px-3">Group ID</th>
+                  <th className="text-left py-2 px-3">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(msgs as any[]).map((m, i) => (
+                  <tr
+                    key={m.id?.toString() ?? i}
+                    className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                    data-ocid={`admin.deleted_messages.row.${i + 1}`}
+                  >
+                    <td
+                      className="py-2 px-3 max-w-[200px] truncate"
+                      title={m.originalText}
+                    >
+                      {m.originalText || (
+                        <span className="text-muted-foreground/50 italic">
+                          empty
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      className="py-2 px-3 font-mono"
+                      title={m.originalAuthor?.toString()}
+                    >
+                      {shortP(m.originalAuthor?.toString() ?? "")}
+                    </td>
+                    <td
+                      className="py-2 px-3 font-mono"
+                      title={m.deletedBy?.toString()}
+                    >
+                      {shortP(m.deletedBy?.toString() ?? "")}
+                    </td>
+                    <td className="py-2 px-3 font-mono">
+                      {m.groupId?.toString()}
+                    </td>
+                    <td className="py-2 px-3 text-muted-foreground whitespace-nowrap">
+                      {new Date(
+                        Number(m.timestamp) / 1_000_000,
+                      ).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
