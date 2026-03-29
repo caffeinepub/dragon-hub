@@ -64,6 +64,11 @@ actor {
     };
     if (status) {
       creatorPrincipals.add(user, true);
+      // Ensure user is registered in userRoles so backend calls don't trap
+      switch (accessControlState.userRoles.get(user)) {
+        case (null) { accessControlState.userRoles.add(user, #user) };
+        case (?_) {};
+      };
     } else {
       creatorPrincipals.remove(user);
     };
@@ -1340,8 +1345,8 @@ actor {
 
   // Group creation (registered users only)
   public shared ({ caller }) func createGroup(name : Text, description : Text, iconBlob : ?Storage.ExternalBlob, bannerBlob : ?Storage.ExternalBlob, isNsfw : Bool, category : Text) : async GroupId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can create groups");
+    if (not isCreatorOrAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins or creators can create groups");
     };
     let id = nextGroupId;
     nextGroupId += 1;
