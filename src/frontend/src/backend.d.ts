@@ -223,7 +223,7 @@ export interface backendInterface {
     hasAdminBeenClaimed(): Promise<boolean>;
     clearCart(): Promise<void>;
     createCategory(name: string, description: string): Promise<CategoryId>;
-    createGroup(name: string, description: string, iconBlob: ExternalBlob | null, isNsfw: boolean, category: string): Promise<GroupId>;
+    createGroup(name: string, description: string, iconBlob: ExternalBlob | null, bannerBlob: ExternalBlob | null, isNsfw: boolean, category: string): Promise<GroupId>;
     createGroupChannel(groupId: GroupId, name: string, description: string): Promise<ChannelId>;
     createListing(title: string, description: string, price: bigint, image: ExternalBlob): Promise<ListingId>;
     createShop(name: string, description: string, rules: string, contactInfo: string, isNsfw: boolean, _shopCategories: Array<string>, bannerBlob: ExternalBlob | null): Promise<ShopId>;
@@ -302,7 +302,7 @@ export interface backendInterface {
     setCreatorStatus(user: Principal, status: boolean): Promise<void>;
     unbanUserFromGroup(groupId: GroupId, user: Principal): Promise<void>;
     unbanUserFromShop(shopId: ShopId, user: Principal): Promise<void>;
-    updateGroup(groupId: GroupId, name: string, description: string, iconBlob: ExternalBlob | null, isNsfw: boolean, category: string): Promise<void>;
+    updateGroup(groupId: GroupId, name: string, description: string, iconBlob: ExternalBlob | null, bannerBlob: ExternalBlob | null, isNsfw: boolean, category: string): Promise<void>;
     updateShop(shopId: ShopId, name: string, description: string, rules: string, contactInfo: string, bannerBlob: ExternalBlob | null, logoBlob: ExternalBlob | null, isNsfw: boolean, categories: Array<string>): Promise<void>;
     updateShopCategory(id: bigint, name: string): Promise<void>;
     updateShopProduct(productId: ShopProductId, title: string, description: string, price: bigint, currency: string, imageBlobs: Array<ExternalBlob>, paymentLink: string, stock: bigint, isDigital: boolean, category: string, digitalFileBlob: ExternalBlob | null): Promise<void>;

@@ -271,7 +271,7 @@ export const idlService = IDL.Service({
   'clearCart' : IDL.Func([], [], []),
   'createCategory' : IDL.Func([IDL.Text, IDL.Text], [CategoryId], []),
   'createGroup' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
+      [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
       [GroupId],
       [],
     ),
@@ -725,7 +725,7 @@ export const idlFactory = ({ IDL }) => {
     'clearCart' : IDL.Func([], [], []),
     'createCategory' : IDL.Func([IDL.Text, IDL.Text], [CategoryId], []),
     'createGroup' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
+        [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
         [GroupId],
         [],
       ),

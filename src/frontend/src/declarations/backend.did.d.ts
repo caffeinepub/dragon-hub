@@ -254,7 +254,7 @@ export interface _SERVICE {
   'clearCart' : ActorMethod<[], undefined>,
   'createCategory' : ActorMethod<[string, string], CategoryId>,
   'createGroup' : ActorMethod<
-    [string, string, [] | [ExternalBlob], boolean, string],
+    [string, string, [] | [ExternalBlob], [] | [ExternalBlob], boolean, string],
     GroupId
   >,
   'createGroupChannel' : ActorMethod<[GroupId, string, string], ChannelId>,

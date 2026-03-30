@@ -45,7 +45,7 @@ export function HomePage() {
           className="relative h-[520px] flex items-center justify-center"
           style={{
             backgroundImage:
-              "url(/assets/generated/dragon-hub-hero.dim_1600x500.jpg)",
+              "url(/assets/generated/dragon-background.dim_1920x1080.jpg)",
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
