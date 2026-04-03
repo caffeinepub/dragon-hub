@@ -501,6 +501,7 @@ export function GroupDetailPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMember = members?.some((m) => m.toString() === callerPrincipal);
+  const canSendMessages = !!(isMember || isOwner);
 
   const bannedSet = useMemo(
     () => new Set((bans ?? []).map((p: any) => p.toString())),
@@ -1292,7 +1293,7 @@ export function GroupDetailPage() {
             </ScrollArea>
 
             {/* Message input */}
-            {identity && isMember ? (
+            {identity && canSendMessages ? (
               <div className="p-4 border-t border-border">
                 <div className="flex items-end gap-2">
                   {/* Emoji picker */}
@@ -1436,7 +1437,7 @@ export function GroupDetailPage() {
                   </Button>
                 </div>
               </div>
-            ) : identity && !isMember ? (
+            ) : identity && !canSendMessages ? (
               <div className="p-4 border-t border-border text-center">
                 <p className="text-sm text-muted-foreground">
                   Join this group to send messages
