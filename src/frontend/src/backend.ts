@@ -383,7 +383,7 @@ export interface backendInterface {
     markAlertRead(alertId: bigint): Promise<void>;
     markAllAlertsRead(shopId: ShopId): Promise<void>;
     markAsSold(id: ListingId): Promise<void>;
-    postGroupMessage(channelId: ChannelId, text: string): Promise<GroupMessageId>;
+    postGroupMessage(channelId: ChannelId, text: string, mediaBlob: ExternalBlob | null, mediaType: string | null, mediaUrl: string | null): Promise<GroupMessageId>;
     recordPurchase(productId: ShopProductId): Promise<bigint>;
     registerCallerAsUser(): Promise<void>;
     rejectDownload(requestId: bigint): Promise<void>;
@@ -1505,17 +1505,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async postGroupMessage(arg0: ChannelId, arg1: string): Promise<GroupMessageId> {
+    async postGroupMessage(arg0: ChannelId, arg1: string, arg2: ExternalBlob | null, arg3: string | null, arg4: string | null): Promise<GroupMessageId> {
         if (this.processError) {
             try {
-                const result = await this.actor.postGroupMessage(arg0, arg1);
+                const result = await this.actor.postGroupMessage(arg0, arg1, await to_candid_opt_n10(this._uploadFile, this._downloadFile, arg2), arg3 ? [arg3] : [], arg4 ? [arg4] : []);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.postGroupMessage(arg0, arg1);
+            const result = await this.actor.postGroupMessage(arg0, arg1, await to_candid_opt_n10(this._uploadFile, this._downloadFile, arg2), arg3 ? [arg3] : [], arg4 ? [arg4] : []);
             return result;
         }
     }

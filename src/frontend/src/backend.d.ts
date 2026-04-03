@@ -290,7 +290,7 @@ export interface backendInterface {
     markAlertRead(alertId: bigint): Promise<void>;
     markAllAlertsRead(shopId: ShopId): Promise<void>;
     markAsSold(id: ListingId): Promise<void>;
-    postGroupMessage(channelId: ChannelId, text: string): Promise<GroupMessageId>;
+    postGroupMessage(channelId: ChannelId, text: string, mediaBlob: ExternalBlob | null, mediaType: string | null, mediaUrl: string | null): Promise<GroupMessageId>;
     recordPurchase(productId: ShopProductId): Promise<bigint>;
     registerCallerAsUser(): Promise<void>;
     rejectDownload(requestId: bigint): Promise<void>;

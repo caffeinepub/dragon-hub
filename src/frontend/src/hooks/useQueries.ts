@@ -766,15 +766,12 @@ export function usePostGroupMessage() {
         const bytes = new Uint8Array(await mediaFile.arrayBuffer());
         mediaBlob = ExternalBlob.fromBytes(bytes);
       }
-      const mediaBlobOpt = mediaBlob ? [mediaBlob] : [];
-      const mediaTypeOpt = mediaType ? [mediaType] : [];
-      const mediaUrlOpt = mediaUrl ? [mediaUrl] : [];
-      return (actor as any).postGroupMessage(
+      return actor.postGroupMessage(
         channelId,
         text,
-        mediaBlobOpt,
-        mediaTypeOpt,
-        mediaUrlOpt,
+        mediaBlob,
+        mediaType ?? null,
+        mediaUrl ?? null,
       );
     },
     onSuccess: (_data, { channelId }) =>

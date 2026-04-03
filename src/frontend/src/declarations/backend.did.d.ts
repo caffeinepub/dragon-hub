@@ -346,7 +346,7 @@ export interface _SERVICE {
   'markAlertRead' : ActorMethod<[bigint], undefined>,
   'markAllAlertsRead' : ActorMethod<[ShopId], undefined>,
   'markAsSold' : ActorMethod<[ListingId], undefined>,
-  'postGroupMessage' : ActorMethod<[ChannelId, string], GroupMessageId>,
+  'postGroupMessage' : ActorMethod<[ChannelId, string, [] | [ExternalBlob], [] | [string], [] | [string]], GroupMessageId>,
   'recordPurchase' : ActorMethod<[ShopProductId], bigint>,
   'registerCallerAsUser' : ActorMethod<[], undefined>,
   'rejectDownload' : ActorMethod<[bigint], undefined>,
