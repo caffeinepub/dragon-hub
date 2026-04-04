@@ -1182,6 +1182,31 @@ export function useIsUserBanned(
   });
 }
 
+export function useIsUserBannedFromGroup(
+  groupId: bigint,
+  user: { toString(): string } | null,
+) {
+  const { actor, isFetching } = useActor();
+  return useQuery<boolean>({
+    queryKey: ["isUserBannedFromGroup", groupId.toString(), user?.toString()],
+    queryFn: async () => {
+      if (!actor || !user) return false;
+      try {
+        const principal = PrincipalClass.fromText(user.toString());
+        return (
+          ((await (actor as any).isUserBannedFromGroup(
+            groupId,
+            principal,
+          )) as boolean) ?? false
+        );
+      } catch {
+        return false;
+      }
+    },
+    enabled: !!actor && !isFetching && !!user,
+  });
+}
+
 export function useBanUser() {
   const { actor } = useActor();
   const qc = useQueryClient();
@@ -1395,15 +1420,19 @@ export function useUpdateGroup() {
   });
 }
 
-export function useGroupBans(groupId: bigint) {
+export function useGroupBans(groupId: bigint, isOwner = false) {
   const { actor, isFetching } = useActor();
   return useQuery({
     queryKey: ["groupBans", groupId.toString()],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getGroupBans(groupId) as Promise<any[]>;
+      try {
+        return ((await (actor as any).getGroupBans(groupId)) ?? []) as any[];
+      } catch {
+        return [];
+      }
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && isOwner,
   });
 }
 

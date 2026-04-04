@@ -129,6 +129,8 @@ export const GroupChannel = IDL.Record({
   'name' : IDL.Text,
   'description' : IDL.Text,
   'groupId' : GroupId,
+  'restricted' : IDL.Bool,
+  'allowedMembers' : IDL.Vec(IDL.Principal),
 });
 export const GroupMessageId = IDL.Nat;
 export const GroupMessage = IDL.Record({
@@ -591,6 +593,8 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'description' : IDL.Text,
     'groupId' : GroupId,
+    'restricted' : IDL.Bool,
+    'allowedMembers' : IDL.Vec(IDL.Principal),
   });
   const GroupMessageId = IDL.Nat;
   const GroupMessage = IDL.Record({

@@ -30,6 +30,9 @@ export interface GroupMessage {
     text: string;
     author: Principal;
     timestamp: bigint;
+    mediaBlob?: ExternalBlob | null;
+    mediaType?: string | null;
+    mediaUrl?: string | null;
 }
 export type ReplyId = bigint;
 export interface ForumCategory {
@@ -45,6 +48,7 @@ export interface Group {
     description: string;
     isNsfw: boolean;
     iconBlob?: ExternalBlob;
+    bannerBlob?: ExternalBlob | null;
     timestamp: bigint;
     category: string;
 }
@@ -78,6 +82,8 @@ export interface GroupChannel {
     name: string;
     description: string;
     groupId: GroupId;
+    restricted?: boolean;
+    allowedMembers?: Principal[];
 }
 export interface ShopReview {
     id: bigint;

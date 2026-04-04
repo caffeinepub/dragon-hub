@@ -61,6 +61,8 @@ export interface GroupChannel {
   'name' : string,
   'description' : string,
   'groupId' : GroupId,
+  'restricted' : boolean,
+  'allowedMembers' : Array<Principal>,
 }
 export type GroupId = bigint;
 export interface GroupMessage {

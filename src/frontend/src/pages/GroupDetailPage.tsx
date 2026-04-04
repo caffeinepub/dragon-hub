@@ -52,6 +52,7 @@ import {
   useGroupChannels,
   useGroupMembers,
   useGroupMessages,
+  useIsUserBannedFromGroup,
   useJoinGroup,
   useLeaveGroup,
   usePostGroupMessage,
@@ -459,9 +460,13 @@ export function GroupDetailPage() {
   const deleteMessage = useDeleteGroupMessage();
 
   const callerPrincipal = identity?.getPrincipal().toString();
-  const isOwner = group && callerPrincipal === group.owner.toString();
+  const isOwner = !!(group && callerPrincipal === group.owner.toString());
 
-  const { data: bans } = useGroupBans(groupId);
+  const { data: bans } = useGroupBans(groupId, isOwner);
+  const { data: isBannedFromGroup } = useIsUserBannedFromGroup(
+    groupId,
+    identity ? { toString: () => callerPrincipal! } : null,
+  );
 
   const [selectedChannelId, setSelectedChannelId] = useState<bigint | null>(
     null,
@@ -500,8 +505,18 @@ export function GroupDetailPage() {
   const [deleteMsgId, setDeleteMsgId] = useState<bigint | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const isMember = members?.some((m) => m.toString() === callerPrincipal);
-  const canSendMessages = !!(isMember || isOwner);
+  const isMember = members?.some((m: any) => m.toString() === callerPrincipal);
+  // membersLoaded: true once we have a definitive answer (members array loaded, group loaded)
+  const membersLoaded = members !== undefined && group !== undefined;
+  // canSendMessages: show input optimistically while loading; hide only if we know for sure they're not a member
+  const canSendMessages =
+    !isBannedFromGroup &&
+    (!identity
+      ? false
+      : !membersLoaded
+        ? true
+        : // still loading, show input optimistically
+          !!(isMember || isOwner));
 
   const bannedSet = useMemo(
     () => new Set((bans ?? []).map((p: any) => p.toString())),
@@ -697,8 +712,8 @@ export function GroupDetailPage() {
     }
   };
 
-  const bannerUrl = (group as any)?.bannerBlob
-    ? (group as any).bannerBlob.getDirectURL()
+  const bannerUrl = group?.bannerBlob
+    ? (group.bannerBlob as any).getDirectURL()
     : null;
   const iconUrl = group?.iconBlob ? group.iconBlob.getDirectURL() : null;
 
@@ -1254,7 +1269,7 @@ export function GroupDetailPage() {
               <span className="font-semibold text-sm">
                 {selectedChannel.name}
               </span>
-              {(selectedChannel as any).restricted && (
+              {selectedChannel.restricted && (
                 <Lock className="h-3.5 w-3.5 text-yellow-400" />
               )}
               {selectedChannel.description && (
