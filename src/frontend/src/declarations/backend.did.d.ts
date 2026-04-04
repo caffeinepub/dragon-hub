@@ -52,6 +52,7 @@ export interface Group {
   'description' : string,
   'isNsfw' : boolean,
   'iconBlob' : [] | [ExternalBlob],
+  'bannerBlob' : [] | [ExternalBlob],
   'timestamp' : bigint,
   'category' : string,
 }
@@ -68,6 +69,9 @@ export interface GroupMessage {
   'text' : string,
   'author' : Principal,
   'timestamp' : bigint,
+  'mediaBlob' : [] | [ExternalBlob],
+  'mediaType' : [] | [string],
+  'mediaUrl' : [] | [string],
 }
 export type GroupMessageId = bigint;
 export interface Listing {
@@ -359,7 +363,7 @@ export interface _SERVICE {
   'unbanUserFromGroup' : ActorMethod<[GroupId, Principal], undefined>,
   'unbanUserFromShop' : ActorMethod<[ShopId, Principal], undefined>,
   'updateGroup' : ActorMethod<
-    [GroupId, string, string, [] | [ExternalBlob], boolean, string],
+    [GroupId, string, string, [] | [ExternalBlob], [] | [ExternalBlob], boolean, string],
     undefined
   >,
   'updateShop' : ActorMethod<

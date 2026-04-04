@@ -57,6 +57,7 @@ export const Group = IDL.Record({
   'description' : IDL.Text,
   'isNsfw' : IDL.Bool,
   'iconBlob' : IDL.Opt(ExternalBlob),
+  'bannerBlob' : IDL.Opt(ExternalBlob),
   'timestamp' : IDL.Int,
   'category' : IDL.Text,
 });
@@ -136,6 +137,9 @@ export const GroupMessage = IDL.Record({
   'text' : IDL.Text,
   'author' : IDL.Principal,
   'timestamp' : IDL.Int,
+  'mediaBlob' : IDL.Opt(ExternalBlob),
+  'mediaType' : IDL.Opt(IDL.Text),
+  'mediaUrl' : IDL.Opt(IDL.Text),
 });
 export const ShopProduct = IDL.Record({
   'id' : ShopProductId,
@@ -369,7 +373,11 @@ export const idlService = IDL.Service({
   'getShop' : IDL.Func([ShopId], [IDL.Opt(Shop)], ['query']),
   'getShopBans' : IDL.Func([ShopId], [IDL.Vec(IDL.Principal)], ['query']),
   'getShopProducts' : IDL.Func([ShopId], [IDL.Vec(ShopProduct)], ['query']),
-  'getShopPurchases' : IDL.Func([ShopId], [IDL.Vec(PurchaseRecord)], ['query']),
+  'getShopPurchases' : IDL.Func(
+      [ShopId],
+      [IDL.Vec(PurchaseRecord)],
+      ['query'],
+    ),
   'getShopQuestions' : IDL.Func([ShopId], [IDL.Vec(ShopQuestion)], ['query']),
   'getShopReviews' : IDL.Func([ShopId], [IDL.Vec(ShopReview)], ['query']),
   'getShopsByOwner' : IDL.Func([IDL.Principal], [IDL.Vec(Shop)], ['query']),
@@ -420,7 +428,7 @@ export const idlService = IDL.Service({
   'unbanUserFromGroup' : IDL.Func([GroupId, IDL.Principal], [], []),
   'unbanUserFromShop' : IDL.Func([ShopId, IDL.Principal], [], []),
   'updateGroup' : IDL.Func(
-      [GroupId, IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
+      [GroupId, IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
       [],
       [],
     ),
@@ -511,6 +519,7 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'isNsfw' : IDL.Bool,
     'iconBlob' : IDL.Opt(ExternalBlob),
+    'bannerBlob' : IDL.Opt(ExternalBlob),
     'timestamp' : IDL.Int,
     'category' : IDL.Text,
   });
@@ -590,6 +599,9 @@ export const idlFactory = ({ IDL }) => {
     'text' : IDL.Text,
     'author' : IDL.Principal,
     'timestamp' : IDL.Int,
+    'mediaBlob' : IDL.Opt(ExternalBlob),
+    'mediaType' : IDL.Opt(IDL.Text),
+    'mediaUrl' : IDL.Opt(IDL.Text),
   });
   const ShopProduct = IDL.Record({
     'id' : ShopProductId,
@@ -886,14 +898,7 @@ export const idlFactory = ({ IDL }) => {
     'unbanUserFromGroup' : IDL.Func([GroupId, IDL.Principal], [], []),
     'unbanUserFromShop' : IDL.Func([ShopId, IDL.Principal], [], []),
     'updateGroup' : IDL.Func(
-        [
-          GroupId,
-          IDL.Text,
-          IDL.Text,
-          IDL.Opt(ExternalBlob),
-          IDL.Bool,
-          IDL.Text,
-        ],
+        [GroupId, IDL.Text, IDL.Text, IDL.Opt(ExternalBlob), IDL.Opt(ExternalBlob), IDL.Bool, IDL.Text],
         [],
         [],
       ),
