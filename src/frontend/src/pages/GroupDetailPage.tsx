@@ -555,15 +555,27 @@ export function GroupDetailPage() {
   };
 
   const handleSend = async () => {
-    if (!msgText.trim() || !selectedChannelId) return;
+    if (!msgText.trim()) {
+      toast.error("Please type a message first");
+      return;
+    }
+    if (!selectedChannelId) {
+      toast.error("No channel selected");
+      return;
+    }
+    if (!identity) {
+      toast.error("Please sign in to send messages");
+      return;
+    }
     try {
       await postMessage.mutateAsync({
         channelId: selectedChannelId,
         text: msgText.trim(),
       });
       setMsgText("");
-    } catch {
-      toast.error("Failed to send message");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to send: ${msg}`);
     }
   };
 

@@ -16,7 +16,11 @@ mixin (accessControlState : AccessControl.AccessControlState) {
   };
 
   public query ({ caller }) func getCallerUserRole() : async AccessControl.UserRole {
-    AccessControl.getUserRole(accessControlState, caller);
+    if (caller.isAnonymous()) { return #guest };
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?role) { role };
+      case (null) { #guest };
+    };
   };
 
   public shared ({ caller }) func assignCallerUserRole(user : Principal, role : AccessControl.UserRole) : async () {
@@ -24,12 +28,7 @@ mixin (accessControlState : AccessControl.AccessControlState) {
     AccessControl.assignRole(accessControlState, caller, user, role);
   };
 
-  // Safe version -- never traps for unregistered callers
   public query ({ caller }) func isCallerAdmin() : async Bool {
-    if (caller.isAnonymous()) { return false };
-    switch (accessControlState.userRoles.get(caller)) {
-      case (?#admin) { true };
-      case (_) { false };
-    };
+    AccessControl.isAdmin(accessControlState, caller);
   };
 };

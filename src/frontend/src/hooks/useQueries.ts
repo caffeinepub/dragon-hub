@@ -645,15 +645,17 @@ export function useGroupChannels(groupId: bigint) {
 }
 
 export function useGroupMessages(channelId: bigint) {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["groupMessages", channelId.toString()],
     queryFn: async () => {
       if (!actor) return [];
       return (actor as any).getGroupMessages(channelId);
     },
-    enabled: !!actor && !isFetching,
-    refetchInterval: 5000,
+    enabled: !!actor,
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: 3000,
   });
 }
 
@@ -745,6 +747,7 @@ export function useCreateGroupChannel() {
 
 export function usePostGroupMessage() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -761,6 +764,7 @@ export function usePostGroupMessage() {
       mediaUrl?: string | null;
     }) => {
       if (!actor) throw new Error("Not connected");
+      if (!identity) throw new Error("Not signed in");
       let mediaBlob: ExternalBlob | null = null;
       if (mediaFile) {
         const bytes = new Uint8Array(await mediaFile.arrayBuffer());
@@ -774,10 +778,48 @@ export function usePostGroupMessage() {
         mediaUrl ?? null,
       );
     },
-    onSuccess: (_data, { channelId }) =>
-      qc.invalidateQueries({
+    onMutate: async ({ channelId, text, mediaType, mediaUrl }) => {
+      // Optimistic update: add the message immediately before backend confirms
+      await qc.cancelQueries({
         queryKey: ["groupMessages", channelId.toString()],
-      }),
+      });
+      const previousMessages = qc.getQueryData([
+        "groupMessages",
+        channelId.toString(),
+      ]);
+      const tempId = BigInt(Date.now()) * -1n; // negative temp ID to distinguish
+      const optimisticMsg = {
+        id: tempId,
+        channelId,
+        text: text ?? "",
+        author: identity?.getPrincipal() ?? { toString: () => "unknown" },
+        timestamp: BigInt(Date.now()) * 1_000_000n,
+        mediaBlob: [],
+        mediaType: mediaType ? [mediaType] : [],
+        mediaUrl: mediaUrl ? [mediaUrl] : [],
+      };
+      qc.setQueryData(
+        ["groupMessages", channelId.toString()],
+        (old: unknown) =>
+          Array.isArray(old) ? [...old, optimisticMsg] : [optimisticMsg],
+      );
+      return { previousMessages };
+    },
+    onError: (_err, { channelId }, context) => {
+      // Roll back optimistic update on error
+      if (context?.previousMessages !== undefined) {
+        qc.setQueryData(
+          ["groupMessages", channelId.toString()],
+          context.previousMessages,
+        );
+      }
+    },
+    onSettled: async (_data, _err, { channelId }) => {
+      // Always refetch from backend after mutation (success or failure)
+      await qc.refetchQueries({
+        queryKey: ["groupMessages", channelId.toString()],
+      });
+    },
   });
 }
 

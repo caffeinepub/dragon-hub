@@ -54,14 +54,24 @@ module {
     state.userRoles.add(user, role);
   };
 
+  // Safe hasPermission - never traps, treats unregistered users as guests
   public func hasPermission(state : AccessControlState, caller : Principal, requiredRole : UserRole) : Bool {
-    let userRole = getUserRole(state, caller);
+    if (caller.isAnonymous()) { return requiredRole == #guest };
+    let userRole = switch (state.userRoles.get(caller)) {
+      case (?role) { role };
+      case (null) { #guest };
+    };
     if (userRole == #admin or requiredRole == #guest) { true } else {
       userRole == requiredRole;
     };
   };
 
+  // Safe isAdmin - never traps, returns false for unregistered users
   public func isAdmin(state : AccessControlState, caller : Principal) : Bool {
-    getUserRole(state, caller) == #admin;
+    if (caller.isAnonymous()) { return false };
+    switch (state.userRoles.get(caller)) {
+      case (? #admin) { true };
+      case (_) { false };
+    };
   };
 };
