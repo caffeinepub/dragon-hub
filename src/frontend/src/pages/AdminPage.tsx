@@ -234,7 +234,7 @@ function ClaimAdminSection({
           );
         } else {
           toast.error(
-            "An admin already exists on this app. Ask them to promote you from the Admin panel.",
+            "Admin claim failed. An admin may already exist — ask them to promote you from the Admin panel.",
           );
         }
       }
@@ -551,19 +551,23 @@ export function AdminPage() {
       }
     },
     enabled: !!actor && !isFetching && !!identity,
+    staleTime: 0,
+    gcTime: 0,
   });
 
-  const { data: adminClaimed } = useQuery({
+  const { data: adminClaimed, isLoading: checkingClaimed } = useQuery({
     queryKey: ["hasAdminBeenClaimed"],
     queryFn: async () => {
-      if (!actor) return false;
+      if (!actor) return undefined;
       try {
         return await actor.hasAdminBeenClaimed();
       } catch {
-        return false;
+        return undefined;
       }
     },
     enabled: !!actor && !isFetching,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const {
@@ -655,7 +659,7 @@ export function AdminPage() {
     );
   }
 
-  if (checkingAdmin || isFetching) {
+  if (checkingAdmin || checkingClaimed || isFetching) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center">
         <div
@@ -670,6 +674,9 @@ export function AdminPage() {
   }
 
   if (!isAdmin) {
+    // Always show the claim button when the user is not an admin.
+    // The backend is the source of truth -- it will reject the claim if
+    // an admin already exists. Never hide the button based on cached data.
     const noAdminExists = adminClaimed === false;
     return (
       <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-10">
@@ -682,16 +689,16 @@ export function AdminPage() {
               <Shield className="h-8 w-8 text-destructive" />
             </div>
             <CardTitle className="font-display text-2xl text-foreground">
-              Access Denied
+              {noAdminExists ? "Claim Admin Access" : "Access Denied"}
             </CardTitle>
             <CardDescription>
               {noAdminExists
-                ? "No admin has been set up yet. Claim admin access below."
-                : "You don’t have admin privileges. Ask an existing admin to promote you."}
+                ? "No admin has been claimed yet. Use the button below to become the first admin."
+                : "You don't have admin privileges. If this is a fresh deployment, try claiming admin below."}
             </CardDescription>
           </CardHeader>
         </Card>
-        {actor && (noAdminExists || adminClaimed === undefined) && (
+        {actor && (
           <ClaimAdminSection
             actor={actor}
             identity={identity}

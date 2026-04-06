@@ -1,29 +1,30 @@
 # Dragon Hub
 
 ## Current State
-Group messaging is broken — members cannot send messages in channels. The issue has persisted through multiple versions.
+
+Dragon Hub is a full-stack platform with video sharing, marketplace, forums, and Discord-style group chat. Previous versions fixed multiple Candid type mismatches and admin claim logic. Two critical issues remain reported by the user:
+
+1. Admin panel doesn't work (user cannot claim admin or access the panel)
+2. Group members cannot send messages in channels
 
 ## Requested Changes (Diff)
 
 ### Add
-- `useIsUserBannedFromGroup` hook that calls `isUserBannedFromGroup` (a public backend query, not owner-restricted) — used in GroupDetailPage to safely check if current user is banned without calling the restricted `getGroupBans`
+- Auto-registration of callers in `joinGroup` (adds them to `userRoles` as `#user` if not present)
+- Auto-registration of callers in `postGroupMessage` (same)
+- Group membership check in `postGroupMessage` replacing the `hasPermission` check
 
 ### Modify
-- **`src/frontend/src/hooks/useQueries.ts`**: Fix `useGroupBans` to wrap in try/catch and only enable when caller is the group owner (pass `isOwner` as parameter). Non-owners calling `getGroupBans` causes a backend trap that can cascade.
-- **`src/frontend/src/pages/GroupDetailPage.tsx`**: 
-  - Change `canSendMessages` logic: show the input for any signed-in user as long as data is still loading OR they are a member/owner. Only hide input if data has fully loaded AND they are confirmed non-member and non-owner.
-  - Use `isUserBannedFromGroup` to check if current user is banned (instead of relying on the owner-only `getGroupBans`)
-  - Pass `isOwner` to `useGroupBans` so it only fires for owners
-- **`src/frontend/src/backend.d.ts`**: Add missing fields to `GroupMessage` (`mediaBlob`, `mediaType`, `mediaUrl`), `Group` (`bannerBlob`), and `GroupChannel` (`restricted`, `allowedMembers`)
-- **`src/frontend/src/declarations/backend.did.d.ts`**: Add `restricted: boolean` and `allowedMembers: Array<Principal>` to `GroupChannel` interface
-- **`src/frontend/src/declarations/backend.did.js`**: Add `'restricted': IDL.Bool` and `'allowedMembers': IDL.Vec(IDL.Principal)` to both `GroupChannel` IDL.Record definitions
+- `MixinAuthorization.mo`: `isCallerAdmin` now uses a safe direct map lookup instead of calling `getUserRole` (which traps for unregistered users). This was the root cause of the admin panel failure.
+- `main.mo` `postGroupMessage`: replaced `AccessControl.hasPermission(caller, #user)` (which called `getUserRole` and trapped for unregistered callers) with a direct group membership check. Any member or owner of the group can post.
+- `main.mo` `joinGroup`: now auto-registers the caller in `userRoles` so subsequent backend calls that check `hasPermission` work correctly.
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Fix `backend.did.js` — add restricted/allowedMembers to both GroupChannel records
-2. Fix `backend.did.d.ts` — add restricted/allowedMembers to GroupChannel interface
-3. Fix `backend.d.ts` — add all missing fields
-4. Fix `useGroupBans` in `useQueries.ts` — add try/catch + accept isOwner parameter to gate the query
-5. Fix `GroupDetailPage.tsx` — fix canSendMessages logic with proper loading guard, call useGroupBans only for owners
+
+1. Fix `isCallerAdmin` in `MixinAuthorization.mo` to do a safe map lookup instead of calling `getUserRole` — prevents trap for users not in the role map.
+2. Fix `joinGroup` in `main.mo` to auto-register caller as `#user` if not already registered.
+3. Fix `postGroupMessage` in `main.mo` to check group membership directly (instead of `hasPermission`) and also auto-register the caller.
+4. No frontend changes needed — the UI logic was already correct.

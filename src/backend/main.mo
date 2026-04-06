@@ -1409,6 +1409,12 @@ actor {
   };
 
   public shared ({ caller }) func joinGroup(groupId : GroupId) : async () {
+    if (caller.isAnonymous()) { Runtime.trap("Anonymous users cannot join groups") };
+    // Auto-register caller as user if not already in the system
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) {};
+      case (null) { accessControlState.userRoles.add(caller, #user) };
+    };
     if (not groups.containsKey(groupId)) { Runtime.trap("Group not found") };
     switch (groupMembers.get(groupId)) {
       case (null) {
@@ -1497,14 +1503,33 @@ actor {
 
   // Message posting (registered users only)
   public shared ({ caller }) func postGroupMessage(channelId : ChannelId, text : Text, mediaBlob : ?Storage.ExternalBlob, mediaType : ?Text, mediaUrl : ?Text) : async GroupMessageId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only registered users can post messages");
+    if (caller.isAnonymous()) { Runtime.trap("Anonymous users cannot post messages") };
+    // Auto-register caller as user if not already in the system
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) {};
+      case (null) { accessControlState.userRoles.add(caller, #user) };
     };
-    if (not groupChannels.containsKey(channelId)) { Runtime.trap("Channel not found") };
+    // Check that caller is a member or owner of the group containing this channel
+    switch (groupChannels.get(channelId)) {
+      case (null) { Runtime.trap("Channel not found") };
+      case (?ch) {
+        let isMember = switch (groupMembers.get(ch.groupId)) {
+          case (null) { false };
+          case (?members) { members.toArray().filter(func(p) { p == caller }).size() > 0 };
+        };
+        let isGroupOwner = switch (groups.get(ch.groupId)) {
+          case (null) { false };
+          case (?g) { g.owner == caller };
+        };
+        if (not isMember and not isGroupOwner and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("You must be a member of this group to send messages");
+        };
+      };
+    };
+    // Check bans and channel restrictions
     switch (groupChannels.get(channelId)) {
       case (null) {};
       case (?c) {
-        // Check bans
         switch (groupBans.get(c.groupId)) {
           case (null) {};
           case (?bans) {
@@ -1512,7 +1537,6 @@ actor {
             if (banned) { Runtime.trap("You are banned from this group") };
           };
         };
-        // Check channel restrictions
         switch (channelPermissions.get(channelId)) {
           case (null) {};
           case (?perms) {
